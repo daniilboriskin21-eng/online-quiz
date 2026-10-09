@@ -1,0 +1,26 @@
+# Зависимости и результаты сборки
+node_modules/
+dist/
+dist-ssr/
+
+# Логи
+logs/
+*.log
+
+# Локальные переменные окружения
+.env
+.env.*
+!.env.example
+*.local
+
+# Редакторы и системные файлы
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Локальные документы проекта
+/DECISIONS.md
+/DESIGN.md
+/DEVELOPMENT_PLAN.md
+/Инструкция проекта.txt
