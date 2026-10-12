@@ -3,6 +3,24 @@ import "./App.css";
 
 function App() {
   const [serverMessage, setServerMessage] = useState("Сервер еще не проверен");
+  const [quizzes, setQuizzes] = useState([]);
+  const [quizzesStatus, setQuizzesStatus] = useState("idle");
+
+  async function loadQuizzes() {
+    setQuizzesStatus("loading");
+    try {
+      const response = await fetch("/api/quizzes");
+      if (!response.ok) {
+        throw new Error("error");
+      }
+
+      const data = await response.json();
+      setQuizzes(data.data);
+      setQuizzesStatus("success");
+    } catch {
+      setQuizzesStatus("error");
+    }
+  }
 
   async function checkServer() {
     setServerMessage("Проверяем...");
@@ -19,6 +37,13 @@ function App() {
     }
   }
 
+  const statusMessages = {
+    idle: "Нажмите, чтобы загрузить квизы",
+    loading: "Загружаем…",
+    success: "Квизы загружены",
+    error: "Не удалось загрузить квизы",
+  };
+
   return (
     <>
       <section id="center">
@@ -30,6 +55,28 @@ function App() {
           Проверить сервер
         </button>
         <p role="status">{serverMessage}</p>
+
+        <button
+          type="button"
+          onClick={loadQuizzes}
+          disabled={quizzesStatus === "loading"}
+        >
+          Загрузить квизы
+        </button>
+        <p role="status">{statusMessages[quizzesStatus]}</p>
+
+        {quizzesStatus === "success" &&
+          (quizzes.length === 0 ? (
+            <p>Пока нет доступных квизов</p>
+          ) : (
+            <ul>
+              {quizzes.map((quiz) => (
+                <li key={quiz.id}>
+                  {quiz.title} - вопросов: {quiz.questionCount}
+                </li>
+              ))}
+            </ul>
+          ))}
       </section>
     </>
   );
