@@ -1,7 +1,9 @@
 import express from "express";
 import { pool } from "./db.js";
+import cookieParser from "cookie-parser";
 
 const app = express();
+app.use(cookieParser());
 
 const port = Number(process.env.PORT ?? 3000);
 
