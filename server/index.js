@@ -1,6 +1,7 @@
 import express from "express";
-import { pool } from "./db.js";
 import cookieParser from "cookie-parser";
+import { pool } from "./db.js";
+import { findSessionByToken } from "./session.js";
 
 const app = express();
 app.use(cookieParser());
@@ -32,6 +33,40 @@ app.get("/api/quizzes", async (req, res) => {
       error: {
         code: "INTERNAL_ERROR",
         message: "Не удалось загрузить квизы",
+      },
+    });
+  }
+});
+
+app.get("/api/session", async (req, res) => {
+  try {
+    const token = req.cookies.session_token;
+
+    if (!token) {
+      return res.json({ data: null });
+    }
+
+    const session = await findSessionByToken(token);
+
+    if (!session || !session.is_active) {
+      res.clearCookie("session_token");
+      return res.json({ data: null });
+    }
+
+    res.json({
+      data: {
+        memberId: session.id,
+        roomCode: session.room_code,
+        role: session.role,
+      },
+    });
+  } catch (error) {
+    console.error("Ошибка проверки сессии:", error.message);
+
+    res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Не удалось проверить сессию",
       },
     });
   }
