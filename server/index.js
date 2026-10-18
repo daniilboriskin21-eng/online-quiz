@@ -149,6 +149,84 @@ app.post("/api/rooms", async (req, res) => {
   }
 });
 
+app.get("/api/rooms/:code", async (req, res) => {
+  try {
+    const token = req.cookies.session_token;
+
+    const session = await findSessionByToken(token);
+
+    if (!token || !session || !session.is_active) {
+      return res.status(401).json({
+        error: {
+          code: "UNAUTHENTICATED",
+          message: "Требуется авторизация",
+        },
+      });
+    }
+
+    const roomCode = req.params.code.trim().toUpperCase();
+
+    if (roomCode !== session.room_code) {
+      return res.status(403).json({
+        error: {
+          code: "FORBIDDEN",
+          message: "У вас нет доступа к этой комнате",
+        },
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        r.code,
+        r.status,
+        q.title AS "quizTitle",
+        count(qu.id)::integer AS "questionCount"
+      FROM rooms r
+      JOIN quizzes q ON q.id = r.quiz_id
+      LEFT JOIN questions qu ON qu.quiz_id = q.id
+      WHERE r.id = $1
+      GROUP BY r.code, r.status, q.title
+      `,
+      [session.room_id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: "ROOM_NOT_FOUND",
+          message: "Комната не найдена",
+        },
+      });
+    }
+
+    const room = result.rows[0];
+    res.status(200).json({
+      data: {
+        room: {
+          code: room.code,
+          status: room.status,
+          quizTitle: room.quizTitle,
+          questionCount: room.questionCount,
+        },
+        me: {
+          memberId: session.id,
+          role: session.role,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Ошибка чтения комнаты:", error.message);
+
+    res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Не удалось прочитать информацию о комнате",
+      },
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Сервер запущен: http://localhost:${port}`);
 });
