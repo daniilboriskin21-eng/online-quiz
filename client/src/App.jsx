@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 
 function App() {
@@ -8,6 +8,7 @@ function App() {
   const [currentRoom, setCurrentRoom] = useState(null);
   const [createRoomError, setCreateRoomError] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   async function loadQuizzes() {
     setQuizzesStatus("loading");
@@ -74,6 +75,56 @@ function App() {
     error: "Не удалось загрузить квизы",
   };
 
+  useEffect(() => {
+  let ignore = false;
+
+  async function restoreSession() {
+    try {
+      const response = await fetch("/api/session");
+      if (!response.ok) {
+        return;
+      }
+
+      const sessionData = await response.json();
+      if (!sessionData.data?.roomCode) {
+        return;
+      }
+
+      const roomResponse = await fetch(
+        `/api/rooms/${sessionData.data.roomCode}`,
+      );
+      if (!roomResponse.ok) {
+        return;
+      }
+
+      const roomResult = await roomResponse.json();
+      if (!ignore) {
+        setCurrentRoom(roomResult.data.room);
+      }
+    } catch (error) {
+      console.error("Ошибка восстановления сессии:", error);
+    } finally {
+      if (!ignore) {
+        setIsCheckingSession(false);
+      }
+    }
+  }
+
+  restoreSession();
+
+  return () => {
+    ignore = true;
+  };
+}, []);
+
+  if (isCheckingSession) {
+    return (
+      <section id="center">
+        <p>Загрузка...</p>
+      </section>
+    )
+  }
+
   if (currentRoom) {
     return (
       <section id="center">
@@ -88,7 +139,7 @@ function App() {
             : currentRoom.status}
         </p>
       </section>
-    )
+    );
   }
 
   return (
