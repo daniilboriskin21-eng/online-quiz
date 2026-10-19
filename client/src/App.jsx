@@ -5,6 +5,9 @@ function App() {
   const [serverMessage, setServerMessage] = useState("Сервер еще не проверен");
   const [quizzes, setQuizzes] = useState([]);
   const [quizzesStatus, setQuizzesStatus] = useState("idle");
+  const [currentRoom, setCurrentRoom] = useState(null);
+  const [createRoomError, setCreateRoomError] = useState("");
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
 
   async function loadQuizzes() {
     setQuizzesStatus("loading");
@@ -19,6 +22,33 @@ function App() {
       setQuizzesStatus("success");
     } catch {
       setQuizzesStatus("error");
+    }
+  }
+
+  async function createRoom(quizId) {
+    setIsCreatingRoom(true);
+    setCreateRoomError("");
+
+    try {
+      const response = await fetch("/api/rooms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ quizId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error?.message || "Не удалось создать комнату");
+      }
+
+      setCurrentRoom(result.data.room);
+    } catch (error) {
+      setCreateRoomError(error.message);
+    } finally {
+      setIsCreatingRoom(false);
     }
   }
 
@@ -43,6 +73,23 @@ function App() {
     success: "Квизы загружены",
     error: "Не удалось загрузить квизы",
   };
+
+  if (currentRoom) {
+    return (
+      <section id="center">
+        <h1>Комната квиза</h1>
+        <p>
+          Код для друзей: <strong>{currentRoom.code}</strong>
+        </p>
+        <p>
+          Статус:{" "}
+          {currentRoom.status === "lobby"
+            ? "Ожидание игроков"
+            : currentRoom.status}
+        </p>
+      </section>
+    )
+  }
 
   return (
     <>
@@ -69,13 +116,29 @@ function App() {
           (quizzes.length === 0 ? (
             <p>Пока нет доступных квизов</p>
           ) : (
-            <ul>
-              {quizzes.map((quiz) => (
-                <li key={quiz.id}>
-                  {quiz.title} - вопросов: {quiz.questionCount}
-                </li>
-              ))}
-            </ul>
+            <div>
+              <ul>
+                {quizzes.map((quiz) => (
+                  <li key={quiz.id}>
+                    <span>
+                      {quiz.title} - вопросов: {quiz.questionCount}
+                    </span>{" "}
+                    <button
+                      type="button"
+                      onClick={() => createRoom(quiz.id)}
+                      disabled={isCreatingRoom}
+                    >
+                      {isCreatingRoom ? "Создаем..." : "Создать комнату"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {createRoomError && (
+                <p role="alert" style={{ color: "red" }}>
+                  {createRoomError}
+                </p>
+              )}
+            </div>
           ))}
       </section>
     </>
