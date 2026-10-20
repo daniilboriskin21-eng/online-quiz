@@ -2,7 +2,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { pool } from "./db.js";
 import { findSessionByToken } from "./session.js";
-import { createRoom } from "./rooms.js";
+import { createRoom, joinRoom } from "./rooms.js";
 
 const app = express();
 app.use(cookieParser());
@@ -222,6 +222,81 @@ app.get("/api/rooms/:code", async (req, res) => {
       error: {
         code: "INTERNAL_ERROR",
         message: "Не удалось прочитать информацию о комнате",
+      },
+    });
+  }
+});
+
+app.post("/api/rooms/:code/join", async (req, res) => {
+  try {
+    const token = req.cookies.session_token;
+
+    if (token) {
+      const session = await findSessionByToken(token);
+
+      if (session && session.is_active && session.room_status !== "finished") {
+        return res.status(409).json({
+          error: {
+            code: "SESSION_ALREADY_ACTIVE",
+            message: "У вас уже есть активная игра",
+          },
+        });
+      }
+    }
+
+    const {
+      room,
+      member,
+      token: sessionToken,
+    } = await joinRoom(req.params.code, req.body?.nickname);
+
+    res.cookie("session_token", sessionToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(201).json({
+      data: {
+        room: {
+          code: room.code,
+          status: room.status,
+        },
+        me: {
+          memberId: member.id,
+          role: member.role,
+          nickname: member.nickname,
+        },
+      },
+    });
+  } catch (error) {
+    if (error.code === "VALIDATION_ERROR") {
+      return res
+        .status(400)
+        .json({ error: { code: error.code, message: error.message } });
+    }
+
+    if (error.code === "ROOM_NOT_FOUND") {
+      return res
+        .status(404)
+        .json({ error: { code: error.code, message: error.message } });
+    }
+
+    if (
+      error.code === "NICKNAME_TAKEN" ||
+      error.code === "GAME_ALREADY_STARTED"
+    ) {
+      return res
+        .status(409)
+        .json({ error: { code: error.code, message: error.message } });
+    }
+
+    console.error("Ошибка входа в комнату:", error.message);
+    res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Не удалось войти в комнату",
       },
     });
   }
