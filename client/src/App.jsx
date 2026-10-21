@@ -10,6 +10,44 @@ function App() {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
+  const [joinCode, setJoinCode] = useState("");
+  const [joinNickname, setJoinNickname] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  async function handleJoin(e) {
+    e.preventDefault();
+    setIsJoining(true);
+    setJoinError("");
+
+    try {
+      const code = joinCode.trim().toUpperCase();
+      const nickname = joinNickname.trim();
+
+      const response = await fetch(`/api/rooms/${code}/join`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ nickname }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error?.message || "Не удалось войти в комнату");
+      }
+
+      setCurrentRoom(result.data.room);
+      setCurrentUser(result.data.me);
+    } catch (error) {
+      setJoinError(error.message);
+    } finally {
+      setIsJoining(false);
+    }
+  }
+
   async function loadQuizzes() {
     setQuizzesStatus("loading");
     try {
@@ -46,6 +84,7 @@ function App() {
       }
 
       setCurrentRoom(result.data.room);
+      setCurrentUser(result.data.me);
     } catch (error) {
       setCreateRoomError(error.message);
     } finally {
@@ -76,53 +115,54 @@ function App() {
   };
 
   useEffect(() => {
-  let ignore = false;
+    let ignore = false;
 
-  async function restoreSession() {
-    try {
-      const response = await fetch("/api/session");
-      if (!response.ok) {
-        return;
-      }
+    async function restoreSession() {
+      try {
+        const response = await fetch("/api/session");
+        if (!response.ok) {
+          return;
+        }
 
-      const sessionData = await response.json();
-      if (!sessionData.data?.roomCode) {
-        return;
-      }
+        const sessionData = await response.json();
+        if (!sessionData.data?.roomCode) {
+          return;
+        }
 
-      const roomResponse = await fetch(
-        `/api/rooms/${sessionData.data.roomCode}`,
-      );
-      if (!roomResponse.ok) {
-        return;
-      }
+        const roomResponse = await fetch(
+          `/api/rooms/${sessionData.data.roomCode}`,
+        );
+        if (!roomResponse.ok) {
+          return;
+        }
 
-      const roomResult = await roomResponse.json();
-      if (!ignore) {
-        setCurrentRoom(roomResult.data.room);
-      }
-    } catch (error) {
-      console.error("Ошибка восстановления сессии:", error);
-    } finally {
-      if (!ignore) {
-        setIsCheckingSession(false);
+        const roomResult = await roomResponse.json();
+        if (!ignore) {
+          setCurrentRoom(roomResult.data.room);
+          setCurrentUser(roomResult.data.me);
+        }
+      } catch (error) {
+        console.error("Ошибка восстановления сессии:", error);
+      } finally {
+        if (!ignore) {
+          setIsCheckingSession(false);
+        }
       }
     }
-  }
 
-  restoreSession();
+    restoreSession();
 
-  return () => {
-    ignore = true;
-  };
-}, []);
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   if (isCheckingSession) {
     return (
       <section id="center">
         <p>Загрузка...</p>
       </section>
-    )
+    );
   }
 
   if (currentRoom) {
@@ -137,6 +177,11 @@ function App() {
           {currentRoom.status === "lobby"
             ? "Ожидание игроков"
             : currentRoom.status}
+        </p>
+
+        <p>
+          Вы вошли как: <strong>{currentUser?.nickname || "Ведущий"}</strong> (
+          {currentUser?.role === "host" ? "Ведущий" : "Игрок"})
         </p>
       </section>
     );
@@ -153,6 +198,43 @@ function App() {
           Проверить сервер
         </button>
         <p role="status">{serverMessage}</p>
+
+        <form
+          onSubmit={handleJoin}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            maxWidth: "300px",
+          }}
+        >
+          <h2>Присоединиться к игре</h2>
+          <input
+            type="text"
+            placeholder="Код комнаты (6 символов)"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            maxLength={6}
+            required
+          />
+          <input
+            type="text"
+            placeholder="Ваш никнейм"
+            value={joinNickname}
+            onChange={(e) => setJoinNickname(e.target.value)}
+            maxLength={20}
+            required
+          />
+          <button type="submit" disabled={isJoining}>
+            {isJoining ? "Входим…" : "Войти в игру"}
+          </button>
+          {joinError && (
+            <p role="alert" style={{ color: "red" }}>
+              {joinError}
+            </p>
+          )}
+        </form>
+        <hr style={{ width: "100%", margin: "20px 0" }} />
 
         <button
           type="button"
