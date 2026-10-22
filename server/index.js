@@ -11,9 +11,42 @@ const server = http.createServer(app);
 const io = new Server(server);
 app.use(cookieParser());
 app.use(express.json());
+io.engine.use(cookieParser());
+
+io.use(async (socket, next) => {
+  try {
+    const token = socket.request.cookies?.session_token;
+
+    if (!token) {
+      return next(new Error("UNAUTHENTICATED"));
+    }
+
+    const session = await findSessionByToken(token);
+
+    if (!session || !session.is_active) {
+      return next(new Error("UNAUTHENTICATED"));
+    }
+
+    socket.data.session = session;
+    next();
+  } catch (error) {
+    console.error("Ошибка авторизации сокета:", error.message);
+    next(new Error("INTERNAL_ERROR"));
+  }
+});
 
 io.on("connection", (socket) => {
-  console.log("Новое сокет-подключение:", socket.id);
+  const session = socket.data.session;
+
+  socket.join(session.room_code);
+
+  console.log(
+    `Сокет ${socket.id}: подключился ${session.role} (${session.nickname || "Ведущий"}) к комнате ${session.room_code}`
+  );
+
+  socket.on("disconnect", () => {
+    console.log(`Сокет ${socket.id} отключился`);
+  })
 });
 
 const port = Number(process.env.PORT ?? 3000);
