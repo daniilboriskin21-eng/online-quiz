@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { io } from "socket.io-client";
 import "./App.css";
 
 function App() {
@@ -156,6 +157,24 @@ function App() {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentRoom) return;
+
+    const socket = io();
+
+    socket.on("connect", () => {
+      console.log("Сокет успешно подключен к серверу! ID:", socket.id);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("Ошибка подключения сокета:", err.message);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [currentRoom]);
 
   if (isCheckingSession) {
     return (
