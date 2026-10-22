@@ -1,12 +1,20 @@
 import express from "express";
+import http from "node:http";
+import { Server } from "socket.io";
 import cookieParser from "cookie-parser";
 import { pool } from "./db.js";
 import { findSessionByToken } from "./session.js";
 import { createRoom, joinRoom } from "./rooms.js";
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 app.use(cookieParser());
 app.use(express.json());
+
+io.on("connection", (socket) => {
+  console.log("Новое сокет-подключение:", socket.id);
+});
 
 const port = Number(process.env.PORT ?? 3000);
 
@@ -302,6 +310,6 @@ app.post("/api/rooms/:code/join", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Сервер запущен: http://localhost:${port}`);
 });
