@@ -13,6 +13,73 @@ app.use(cookieParser());
 app.use(express.json());
 io.engine.use(cookieParser());
 
+const memberSockets = new Map(); // memberId (число) -> Set(socket.id)
+
+function isMemberOnline(memberId) {
+  const sockets = memberSockets.get(memberId);
+  return Boolean(sockets && sockets.size > 0);
+}
+
+async function broadcastRoomState(roomId, roomCode) {
+  try {
+    const roomResult = await pool.query(
+      `SELECT r.id, r.code, r.status, q.title AS "quizTitle", count(qu.id)::integer AS "questionCount"
+       FROM rooms r
+       JOIN quizzes q ON q.id = r.quiz_id
+       LEFT JOIN questions qu ON qu.quiz_id = q.id
+       WHERE r.id = $1
+       GROUP BY r.id, r.code, r.status, q.title`,
+      [roomId],
+    );
+
+    if (roomResult.rows.length === 0) return;
+    const room = roomResult.rows[0];
+
+    const memberResult = await pool.query(
+      `SELECT id, role, nickname
+       FROM members
+       WHERE room_id = $1
+       ORDER BY id`,
+      [roomId],
+    );
+
+    const host = memberResult.rows.find((m) => m.role === "host");
+    const players = memberResult.rows
+      .filter((m) => m.role === "player")
+      .map((p) => ({
+        id: p.id,
+        nickname: p.nickname,
+        online: isMemberOnline(p.id),
+      }));
+
+    const hostOnline = host ? isMemberOnline(host.id) : false;
+
+    const sockets = await io.in(roomCode).fetchSockets();
+
+    for (const socket of sockets) {
+      const mySession = socket.data.session;
+
+      socket.emit("room:state", {
+        room: {
+          code: room.code,
+          status: room.status,
+          quizTitle: room.quizTitle,
+          questionCount: room.questionCount,
+        },
+        hostOnline,
+        players,
+        me: {
+          memberId: mySession.id,
+          role: mySession.role,
+          nickname: mySession.nickname,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Ошибка рассылки room:state:", error.message);
+  }
+}
+
 io.use(async (socket, next) => {
   try {
     const token = socket.request.cookies?.session_token;
@@ -40,13 +107,30 @@ io.on("connection", (socket) => {
 
   socket.join(session.room_code);
 
+  if (!memberSockets.has(session.id)) {
+    memberSockets.set(session.id, new Set());
+  }
+  memberSockets.get(session.id).add(socket.id);
+
   console.log(
-    `Сокет ${socket.id}: подключился ${session.role} (${session.nickname || "Ведущий"}) к комнате ${session.room_code}`
+    `Сокет ${socket.id}: подключился ${session.role} (${session.nickname || "Ведущий"}) к комнате ${session.room_code}`,
   );
 
+  broadcastRoomState(session.room_id, session.room_code);
+
   socket.on("disconnect", () => {
+    const sockets = memberSockets.get(session.id);
+    if (sockets) {
+      sockets.delete(socket.id);
+      if (sockets.size === 0) {
+        memberSockets.delete(session.id);
+      }
+    }
+
     console.log(`Сокет ${socket.id} отключился`);
-  })
+
+    broadcastRoomState(session.room_id, session.room_code);
+  });
 });
 
 const port = Number(process.env.PORT ?? 3000);
@@ -311,6 +395,8 @@ app.post("/api/rooms/:code/join", async (req, res) => {
         },
       },
     });
+
+    broadcastRoomState(room.id, room.code);
   } catch (error) {
     if (error.code === "VALIDATION_ERROR") {
       return res
