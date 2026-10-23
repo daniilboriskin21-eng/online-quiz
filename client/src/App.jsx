@@ -17,6 +17,8 @@ function App() {
   const [isJoining, setIsJoining] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
+  const [roomState, setRoomState] = useState(null);
+
   async function handleJoin(e) {
     e.preventDefault();
     setIsJoining(true);
@@ -171,6 +173,11 @@ function App() {
       console.error("Ошибка подключения сокета:", err.message);
     });
 
+    socket.on("room:state", (state) => {
+      console.log("Получено живое состояние комнаты:", state);
+      setRoomState(state);
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -189,6 +196,10 @@ function App() {
       <section id="center">
         <h1>Комната квиза</h1>
         <p>
+          Квиз: <strong>{roomState?.room.quizTitle || "Загрузка..."}</strong>{" "}
+          (вопросов: {roomState?.room.questionCount || 0})
+        </p>
+        <p>
           Код для друзей: <strong>{currentRoom.code}</strong>
         </p>
         <p>
@@ -202,6 +213,24 @@ function App() {
           Вы вошли как: <strong>{currentUser?.nickname || "Ведущий"}</strong> (
           {currentUser?.role === "host" ? "Ведущий" : "Игрок"})
         </p>
+
+        <hr style={{ width: "100%", margin: "15px 0" }} />
+
+        <p>Ведущий: {roomState?.hostOnline ? "🟢 в сети" : "⚪ не в сети"}</p>
+
+        <h3>Игроки в лобби ({roomState?.players?.length ?? 0}):</h3>
+        {roomState?.players?.length === 0 ? (
+          <p>Пока никто не присоединился. Отправьте код друзьям!</p>
+        ) : (
+          <ul>
+            {roomState?.players.map((player) => (
+              <li key={player.id}>
+                <span>{player.nickname}</span>{" "}
+                <small>{player.online ? "🟢 в сети" : "⚪ не в сети"}</small>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     );
   }
