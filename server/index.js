@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import { pool } from "./db.js";
 import { findSessionByToken } from "./session.js";
 import { createRoom, joinRoom } from "./rooms.js";
+import { startGame, getCurrentRound, closeCurrentRound } from "./game.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -14,6 +15,29 @@ app.use(express.json());
 io.engine.use(cookieParser());
 
 const memberSockets = new Map(); // memberId (число) -> Set(socket.id)
+
+const roomTimers = new Map(); // roomId -> Timeout
+
+function scheduleRoundTimer(roomId, roomCode, roundId, endsAtIso) {
+  if (roomTimers.has(roomId)) {
+    clearTimeout(roomTimers.get(roomId));
+    roomTimers.delete(roomId);
+  }
+
+  const delayMs = Math.max(0, new Date(endsAtIso).getTime() - Date.now());
+
+  const timer = setTimeout(async () => {
+    try {
+      await closeCurrentRound(roomId, roundId);
+      roomTimers.delete(roomId);
+      await broadcastRoomState(roomId, roomCode);
+    } catch (error) {
+      console.error(`Ошибка при авторизации раунда ${roundId}:`, error.message);
+    }
+  }, delayMs);
+
+  roomTimers.set(roomId, timer);
+}
 
 function isMemberOnline(memberId) {
   const sockets = memberSockets.get(memberId);
@@ -56,6 +80,11 @@ async function broadcastRoomState(roomId, roomCode) {
 
     const sockets = await io.in(roomCode).fetchSockets();
 
+    let currentRound = null;
+    if (room.status === "question" || room.status === "round_results") {
+      currentRound = await getCurrentRound(roomId);
+    }
+
     for (const socket of sockets) {
       const mySession = socket.data.session;
 
@@ -73,6 +102,7 @@ async function broadcastRoomState(roomId, roomCode) {
           role: mySession.role,
           nickname: mySession.nickname,
         },
+        round: currentRound,
       });
     }
   } catch (error) {
@@ -117,6 +147,34 @@ io.on("connection", (socket) => {
   );
 
   broadcastRoomState(session.room_id, session.room_code);
+
+  socket.on("game:start", async (data, callback) => {
+    try {
+      const round = await startGame(session.room_id, session.id);
+      scheduleRoundTimer(
+        session.room_id,
+        session.room_code,
+        round.id,
+        round.endsAt,
+      );
+      await broadcastRoomState(session.room_id, session.room_code);
+
+      if (typeof callback === "function") {
+        callback({ ok: true, data: { roundId: round.id } });
+      }
+    } catch (error) {
+      console.error("Ошибка game:start", error.message);
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: {
+            code: error.code || "INTERNAL_ERROR",
+            message: error.message,
+          },
+        });
+      }
+    }
+  });
 
   socket.on("disconnect", () => {
     const sockets = memberSockets.get(session.id);
