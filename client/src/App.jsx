@@ -1,6 +1,39 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
+
+function Timer({ endsAt }) {
+  const [secondsLeft, setSecondsLeft] = useState(() =>
+    Math.max(0, Math.ceil((new Date(endsAt).getTime() - Date.now()) / 1000)),
+  );
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const diff = Math.max(
+        0,
+        Math.ceil((new Date(endsAt).getTime() - Date.now()) / 1000),
+      );
+
+      setSecondsLeft(diff);
+      if (diff <= 0) {
+        clearInterval(interval);
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [endsAt]);
+
+  return (
+    <strong
+      style={{
+        fontSize: "1.2rem",
+        color: secondsLeft <= 5 ? "red" : "inherit",
+      }}
+    >
+      ⏱️ {secondsLeft} сек.
+    </strong>
+  );
+}
 
 function App() {
   const [serverMessage, setServerMessage] = useState("Сервер еще не проверен");
@@ -18,6 +51,23 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
 
   const [roomState, setRoomState] = useState(null);
+
+  const socketRef = useRef(null);
+  const [startGameError, setStartGameError] = useState("");
+  const [isStartingGame, setIsStartingGame] = useState(false);
+
+  function handleStartGame() {
+    if (!socketRef.current) return;
+    setIsStartingGame(true);
+    setStartGameError("");
+
+    socketRef.current.emit("game:start", {}, (response) => {
+      setIsStartingGame(false);
+      if (!response?.ok) {
+        setStartGameError(response?.error?.message || "Не удалось начать игру");
+      }
+    });
+  }
 
   async function handleJoin(e) {
     e.preventDefault();
@@ -164,6 +214,7 @@ function App() {
     if (!currentRoom) return;
 
     const socket = io();
+    socketRef.current = socket;
 
     socket.on("connect", () => {
       console.log("Сокет успешно подключен к серверу! ID:", socket.id);
@@ -180,6 +231,7 @@ function App() {
 
     return () => {
       socket.disconnect();
+      socketRef.current = null;
     };
   }, [currentRoom]);
 
@@ -192,6 +244,8 @@ function App() {
   }
 
   if (currentRoom) {
+    const currentStatus = roomState?.room.status || currentRoom.status;
+
     return (
       <section id="center">
         <h1>Комната квиза</h1>
@@ -203,33 +257,131 @@ function App() {
           Код для друзей: <strong>{currentRoom.code}</strong>
         </p>
         <p>
-          Статус:{" "}
-          {currentRoom.status === "lobby"
-            ? "Ожидание игроков"
-            : currentRoom.status}
-        </p>
-
-        <p>
           Вы вошли как: <strong>{currentUser?.nickname || "Ведущий"}</strong> (
           {currentUser?.role === "host" ? "Ведущий" : "Игрок"})
         </p>
 
         <hr style={{ width: "100%", margin: "15px 0" }} />
 
-        <p>Ведущий: {roomState?.hostOnline ? "🟢 в сети" : "⚪ не в сети"}</p>
+        {/* 1. ЭКРАН ЛОББИ */}
+        {currentStatus === "lobby" && (
+          <div>
+            <p>
+              Статус: <strong>Ожидание игроков</strong>
+            </p>
+            <p>
+              Ведущий: {roomState?.hostOnline ? "🟢 в сети" : "⚪ не в сети"}
+            </p>
 
-        <h3>Игроки в лобби ({roomState?.players?.length ?? 0}):</h3>
-        {roomState?.players?.length === 0 ? (
-          <p>Пока никто не присоединился. Отправьте код друзьям!</p>
-        ) : (
-          <ul>
-            {roomState?.players.map((player) => (
-              <li key={player.id}>
-                <span>{player.nickname}</span>{" "}
-                <small>{player.online ? "🟢 в сети" : "⚪ не в сети"}</small>
-              </li>
-            ))}
-          </ul>
+            <h3>Игроки в лобби ({roomState?.players?.length ?? 0}):</h3>
+            {roomState?.players?.length === 0 ? (
+              <p>Пока никто не присоединился. Отправьте код друзьям!</p>
+            ) : (
+              <ul>
+                {roomState?.players.map((player) => (
+                  <li key={player.id}>
+                    <span>{player.nickname}</span>{" "}
+                    <small>
+                      {player.online ? "🟢 в сети" : "⚪ не в сети"}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {currentUser?.role === "host" && (
+              <div style={{ marginTop: "20px" }}>
+                <button
+                  type="button"
+                  onClick={handleStartGame}
+                  disabled={
+                    isStartingGame || (roomState?.players?.length ?? 0) === 0
+                  }
+                  style={{
+                    padding: "10px 20px",
+                    fontSize: "1.1rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  {isStartingGame ? "Запускаем…" : "Начать игру"}
+                </button>
+                {(roomState?.players?.length ?? 0) === 0 && (
+                  <p
+                    style={{
+                      color: "#888",
+                      fontSize: "0.9rem",
+                      marginTop: "8px",
+                    }}
+                  >
+                    Для старта нужен хотя бы один игрок
+                  </p>
+                )}
+                {startGameError && (
+                  <p role="alert" style={{ color: "red" }}>
+                    {startGameError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2. ЭКРАН ВОПРОСА */}
+        {currentStatus === "question" && roomState?.round && (
+          <div style={{ width: "100%", maxWidth: "500px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>
+                Вопрос {roomState.round.number} из{" "}
+                {roomState.room.questionCount}
+              </span>
+              <Timer endsAt={roomState.round.endsAt} />
+            </div>
+
+            <h2 style={{ margin: "20px 0" }}>
+              {roomState.round.question.text}
+            </h2>
+
+            {currentUser?.role === "host" ? (
+              <p style={{ color: "#666", fontStyle: "italic" }}>
+                Вы ведущий. Игроки выбирают ответы...
+              </p>
+            ) : (
+              <p style={{ color: "#666" }}>Выберите вариант ответа:</p>
+            )}
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "10px",
+              }}
+            >
+              {roomState.round.question.options.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={currentUser?.role === "host"}
+                  style={{ padding: "15px", fontSize: "1rem" }}
+                >
+                  {option.text}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3. ЭКРАН РЕЗУЛЬТАТОВ РАУНДА (ТАЙМЕР ИСТЁК) */}
+        {currentStatus === "round_results" && (
+          <div style={{ marginTop: "20px", textAlign: "center" }}>
+            <h2>⏰ Время вышло!</h2>
+            <p>Раунд завершён. Ожидаем следующий этап...</p>
+          </div>
         )}
       </section>
     );
