@@ -56,6 +56,28 @@ function App() {
   const [startGameError, setStartGameError] = useState("");
   const [isStartingGame, setIsStartingGame] = useState(false);
 
+  const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function handleSubmitAnswer(optionId) {
+    if (!socketRef.current || !roomState?.round) return;
+    setIsSubmitting(true);
+    setSubmitError("");
+
+    socketRef.current.emit(
+      "answer:submit",
+      { roundId: roomState.round.id, optionId },
+      (response) => {
+        setIsSubmitting(false);
+        if (!response?.ok) {
+          setSubmitError(
+            response?.error?.message || "Не удалось отправить ответ",
+          );
+        }
+      },
+    );
+  }
+
   function handleStartGame() {
     if (!socketRef.current) return;
     setIsStartingGame(true);
@@ -351,6 +373,10 @@ function App() {
               <p style={{ color: "#666", fontStyle: "italic" }}>
                 Вы ведущий. Игроки выбирают ответы...
               </p>
+            ) : roomState?.myAnswer ? (
+              <p style={{ color: "green", fontWeight: "bold" }}>
+                ✅ Ваш ответ принят! Ожидаем окончания времени...
+              </p>
             ) : (
               <p style={{ color: "#666" }}>Выберите вариант ответа:</p>
             )}
@@ -362,25 +388,141 @@ function App() {
                 gap: "10px",
               }}
             >
-              {roomState.round.question.options.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  disabled={currentUser?.role === "host"}
-                  style={{ padding: "15px", fontSize: "1rem" }}
-                >
-                  {option.text}
-                </button>
-              ))}
+              {roomState.round.question.options.map((option) => {
+                const isSelected = roomState?.myAnswer?.optionId === option.id;
+                const isDisabled =
+                  currentUser?.role === "host" ||
+                  Boolean(roomState?.myAnswer) ||
+                  isSubmitting;
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => handleSubmitAnswer(option.id)}
+                    disabled={isDisabled}
+                    style={{
+                      padding: "15px",
+                      fontSize: "1rem",
+                      cursor: isDisabled ? "default" : "pointer",
+                      border: isSelected
+                        ? "3px solid #2196F3"
+                        : "1px solid #ccc",
+                      backgroundColor: isSelected ? "#e3f2fd" : "inherit",
+                      fontWeight: isSelected ? "bold" : "normal",
+                    }}
+                  >
+                    {isSelected && "✓ "}
+                    {option.text}
+                  </button>
+                );
+              })}
             </div>
+
+            {submitError && (
+              <p role="alert" style={{ color: "red", marginTop: "10px" }}>
+                {submitError}
+              </p>
+            )}
           </div>
         )}
 
-        {/* 3. ЭКРАН РЕЗУЛЬТАТОВ РАУНДА (ТАЙМЕР ИСТЁК) */}
-        {currentStatus === "round_results" && (
-          <div style={{ marginTop: "20px", textAlign: "center" }}>
+        {/* 3. ЭКРАН РЕЗУЛЬТАТОВ РАУНДА */}
+        {currentStatus === "round_results" && roomState?.round && (
+          <div
+            style={{ width: "100%", maxWidth: "500px", textAlign: "center" }}
+          >
             <h2>⏰ Время вышло!</h2>
-            <p>Раунд завершён. Ожидаем следующий этап...</p>
+            <h3 style={{ margin: "15px 0" }}>
+              {roomState.round.question.text}
+            </h3>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "10px",
+                marginBottom: "25px",
+              }}
+            >
+              {roomState.round.question.options.map((option) => {
+                const isCorrect =
+                  roomState?.results?.correctOptionId === option.id;
+                const isMyChoice = roomState?.myAnswer?.optionId === option.id;
+
+                let border = "1px solid #ccc";
+                let bg = "inherit";
+
+                if (isCorrect) {
+                  border = "3px solid #4CAF50";
+                  bg = "#e8f5e9";
+                } else if (isMyChoice && !isCorrect) {
+                  border = "3px solid #f44336";
+                  bg = "#ffebee";
+                }
+
+                return (
+                  <div
+                    key={option.id}
+                    style={{
+                      padding: "15px",
+                      fontSize: "1rem",
+                      border,
+                      backgroundColor: bg,
+                      borderRadius: "6px",
+                      fontWeight: isCorrect || isMyChoice ? "bold" : "normal",
+                    }}
+                  >
+                    {isCorrect && "🟢 "}
+                    {isMyChoice && !isCorrect && "🔴 "}
+                    {option.text}
+                    {isCorrect && " (Верно!)"}
+                  </div>
+                );
+              })}
+            </div>
+
+            {roomState?.results?.leaderboard && (
+              <div>
+                <h3>🏆 Таблица лидеров</h3>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    marginTop: "10px",
+                  }}
+                >
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #ccc" }}>
+                      <th style={{ padding: "8px" }}>Место</th>
+                      <th style={{ padding: "8px" }}>Игрок</th>
+                      <th style={{ padding: "8px" }}>Очки</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roomState.results.leaderboard.map((p) => {
+                      const isMe = p.memberId === currentUser?.memberId;
+                      return (
+                        <tr
+                          key={p.memberId}
+                          style={{
+                            borderBottom: "1px solid #eee",
+                            fontWeight: isMe ? "bold" : "normal",
+                            backgroundColor: isMe ? "#f5f5f5" : "inherit",
+                          }}
+                        >
+                          <td style={{ padding: "8px" }}>#{p.place}</td>
+                          <td style={{ padding: "8px" }}>
+                            {p.nickname} {isMe && "(Вы)"}
+                          </td>
+                          <td style={{ padding: "8px" }}>{p.score}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </section>
