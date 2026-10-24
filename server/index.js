@@ -5,7 +5,13 @@ import cookieParser from "cookie-parser";
 import { pool } from "./db.js";
 import { findSessionByToken } from "./session.js";
 import { createRoom, joinRoom } from "./rooms.js";
-import { startGame, getCurrentRound, closeCurrentRound } from "./game.js";
+import {
+  startGame,
+  getCurrentRound,
+  closeCurrentRound,
+  submitAnswer,
+  getRoundResults,
+} from "./game.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -81,12 +87,32 @@ async function broadcastRoomState(roomId, roomCode) {
     const sockets = await io.in(roomCode).fetchSockets();
 
     let currentRound = null;
+    let roundResults = null;
+    const answersMap = new Map(); // member_id -> option_id
+
     if (room.status === "question" || room.status === "round_results") {
       currentRound = await getCurrentRound(roomId);
+
+      if (currentRound) {
+        const answersResult = await pool.query(
+          `SELECT member_id, option_id FROM answers WHERE round_id = $1`,
+          [currentRound.id],
+        );
+
+        for (const row of answersResult.rows) {
+          answersMap.set(row.member_id, row.option_id);
+        }
+
+        if (room.status === "round_results") {
+          roundResults = await getRoundResults(roomId, currentRound.id);
+        }
+      }
     }
 
     for (const socket of sockets) {
       const mySession = socket.data.session;
+      const myOptionId = answersMap.get(mySession.id);
+      const myAnswer = myOptionId ? { optionId: myOptionId } : null;
 
       socket.emit("room:state", {
         room: {
@@ -103,6 +129,8 @@ async function broadcastRoomState(roomId, roomCode) {
           nickname: mySession.nickname,
         },
         round: currentRound,
+        myAnswer,
+        results: roundResults,
       });
     }
   } catch (error) {
@@ -164,6 +192,41 @@ io.on("connection", (socket) => {
       }
     } catch (error) {
       console.error("Ошибка game:start", error.message);
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: {
+            code: error.code || "INTERNAL_ERROR",
+            message: error.message,
+          },
+        });
+      }
+    }
+  });
+
+  socket.on("answer:submit", async (data, callback) => {
+    try {
+      const { roundId, optionId } = data || {};
+      if (!roundId || !optionId) {
+        const error = new Error("Не указан roundId или optionId");
+        error.code = "VALIDATION_ERROR";
+        throw error;
+      }
+
+      const result = await submitAnswer(
+        session.room_id,
+        session.id,
+        roundId,
+        optionId,
+      );
+
+      await broadcastRoomState(session.room_id, session.room_code);
+
+      if (typeof callback === "function") {
+        callback({ ok: true, data: result });
+      }
+    } catch (error) {
+      console.error("Ошибка answer:submit:", error.message);
       if (typeof callback === "function") {
         callback({
           ok: false,
