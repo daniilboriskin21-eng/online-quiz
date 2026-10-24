@@ -184,3 +184,132 @@ export async function closeCurrentRound(roomId, roundId) {
     client.release();
   }
 }
+
+export async function submitAnswer(roomId, memberId, roundId, optionId) {
+  const memberResult = await pool.query(
+    `SELECT id, role, room_id 
+     FROM members 
+     WHERE id = $1 AND room_id = $2`,
+    [memberId, roomId],
+  );
+
+  if (
+    memberResult.rows.length === 0 ||
+    memberResult.rows[0].role !== "player"
+  ) {
+    const error = new Error("Только игроки могут отвечать на вопросы");
+    error.code = "FORBIDDEN";
+    throw error;
+  }
+
+  const roundResult = await pool.query(
+    `SELECT r.id, r.room_id, r.question_id, r.ends_at, r.closed_at,
+            (now() <= r.ends_at) AS is_within_time,
+            rm.status AS room_status
+     FROM rounds r
+     JOIN rooms rm ON rm.id = r.room_id
+     WHERE r.id = $1 AND r.room_id = $2`,
+    [roundId, roomId],
+  );
+
+  if (roundResult.rows.length === 0) {
+    const error = new Error("Раунд не найден");
+    error.code = "ROUND_NOT_FOUND";
+    throw error;
+  }
+
+  const round = roundResult.rows[0];
+
+  if (
+    round.room_status !== "question" ||
+    round.closed_at !== null ||
+    !round.is_within_time
+  ) {
+    const error = new Error("Время для ответа истекло");
+    error.code = "ROUND_CLOSED";
+    throw error;
+  }
+
+  const optionResult = await pool.query(
+    `SELECT id, question_id, is_correct 
+     FROM options 
+     WHERE id = $1 AND question_id = $2`,
+    [optionId, round.question_id],
+  );
+
+  if (optionResult.rows.length === 0) {
+    const error = new Error("Недопустимый вариант ответа");
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+
+  const option = optionResult.rows[0];
+
+  const existingAnswer = await pool.query(
+    `SELECT option_id 
+     FROM answers 
+     WHERE round_id = $1 AND member_id = $2`,
+    [roundId, memberId],
+  );
+
+  if (existingAnswer.rows.length > 0) {
+    if (existingAnswer.rows[0].option_id === optionId) {
+      return { optionId };
+    }
+    const error = new Error("Ответ уже был дан");
+    error.code = "ANSWER_ALREADY_SUBMITTED";
+    throw error;
+  }
+
+  const points = option.is_correct ? 1 : 0;
+
+  await pool.query(
+    `INSERT INTO answers (round_id, member_id, option_id, points, accepted_at)
+     VALUES ($1, $2, $3, $4, now())`,
+    [roundId, memberId, optionId, points],
+  );
+
+  return { optionId };
+}
+
+export async function getRoundResults(roomId, roundId) {
+  const correctOptionResult = await pool.query(
+    `SELECT o.id 
+     FROM options o
+     JOIN rounds r ON r.question_id = o.question_id
+     WHERE r.id = $1 AND o.is_correct = true`,
+    [roundId],
+  );
+
+  const correctOptionId = correctOptionResult.rows[0]?.id ?? null;
+
+  const leaderboardResult = await pool.query(
+    `SELECT m.id AS "memberId",
+            m.nickname,
+            COALESCE(sum(a.points), 0)::integer AS score
+     FROM members m
+     LEFT JOIN answers a ON a.member_id = m.id
+     WHERE m.room_id = $1 AND m.role = 'player'
+     GROUP BY m.id, m.nickname
+     ORDER BY score DESC, m.id ASC`,
+    [roomId],
+  );
+
+  let currentPlace = 1;
+  const leaderboard = leaderboardResult.rows.map((row, index, arr) => {
+    if (index > 0 && row.score < arr[index - 1].score) {
+      currentPlace = index + 1;
+    }
+    return {
+      memberId: row.memberId,
+      nickname: row.nickname,
+      score: row.score,
+      place: currentPlace,
+    };
+  });
+
+  return {
+    correctOptionId,
+    leaderboard,
+  };
+}
