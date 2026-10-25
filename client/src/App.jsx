@@ -59,6 +59,40 @@ function App() {
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [isContinuing, setIsContinuing] = useState(false);
+  const [continueError, setContinueError] = useState("");
+  const [isLeaving, setIsLeaving] = useState(false);
+
+  function handleContinueGame() {
+    if (!socketRef.current) return;
+    setIsContinuing(true);
+    setContinueError("");
+
+    socketRef.current.emit("game:continue", {}, (response) => {
+      setIsContinuing(false);
+      if (!response?.ok) {
+        setContinueError(
+          response?.error?.message || "Не удалось продолжить игру",
+        );
+      }
+    });
+  }
+
+  async function handleLeaveGame() {
+    setIsLeaving(true);
+
+    try {
+      await fetch("/api/session/leave", { method: "POST" });
+      setCurrentRoom(null);
+      setCurrentUser(null);
+      setRoomState(null);
+    } catch (error) {
+      console.error("Ошибка при выходе из игры:", error);
+    } finally {
+      setIsLeaving(false);
+    }
+  }
+
   function handleSubmitAnswer(optionId) {
     if (!socketRef.current || !roomState?.round) return;
     setIsSubmitting(true);
@@ -282,6 +316,20 @@ function App() {
           Вы вошли как: <strong>{currentUser?.nickname || "Ведущий"}</strong> (
           {currentUser?.role === "host" ? "Ведущий" : "Игрок"})
         </p>
+
+        <button
+          type="button"
+          onClick={handleLeaveGame}
+          disabled={isLeaving}
+          style={{
+            padding: "5px 12px",
+            fontSize: "0.85rem",
+            cursor: "pointer",
+            marginBottom: "10px",
+          }}
+        >
+          {isLeaving ? "Выходим..." : "Покинуть комнату"}
+        </button>
 
         <hr style={{ width: "100%", margin: "15px 0" }} />
 
@@ -523,6 +571,117 @@ function App() {
                 </table>
               </div>
             )}
+            {currentUser?.role === "host" ? (
+              <div style={{ marginTop: "25px" }}>
+                <button
+                  type="button"
+                  onClick={handleContinueGame}
+                  disabled={isContinuing}
+                  style={{
+                    padding: "12px 24px",
+                    fontSize: "1.1rem",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {isContinuing
+                    ? "Загружаем…"
+                    : roomState.round.number < roomState.room.questionCount
+                      ? "Следующий вопрос →"
+                      : "Показать итоги игры 🏆"}
+                </button>
+                {continueError && (
+                  <p role="alert" style={{ color: "red", marginTop: "10px" }}>
+                    {continueError}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p
+                style={{
+                  marginTop: "20px",
+                  color: "#666",
+                  fontStyle: "italic",
+                }}
+              >
+                Ожидаем, пока ведущий продолжит игру...
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* 4. ЭКРАН ИТОГОВ ИГРЫ (ФИНАЛ) */}
+        {currentStatus === "finished" && (
+          <div
+            style={{ width: "100%", maxWidth: "500px", textAlign: "center" }}
+          >
+            <h2>🎉 Игра завершена!</h2>
+            <p style={{ color: "#666" }}>
+              Квиз: <strong>{roomState?.room.quizTitle}</strong>
+            </p>
+
+            {roomState?.results?.leaderboard && (
+              <div style={{ marginTop: "20px" }}>
+                <h3>🏆 Итоговый пьедестал</h3>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    marginTop: "15px",
+                  }}
+                >
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #ccc" }}>
+                      <th style={{ padding: "10px" }}>Место</th>
+                      <th style={{ padding: "10px" }}>Игрок</th>
+                      <th style={{ padding: "10px" }}>Баллы</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roomState.results.leaderboard.map((p) => {
+                      const isMe = p.memberId === currentUser?.memberId;
+                      const medals = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+                      return (
+                        <tr
+                          key={p.memberId}
+                          style={{
+                            borderBottom: "1px solid #eee",
+                            fontWeight: isMe ? "bold" : "normal",
+                            backgroundColor: isMe ? "#f5f5f5" : "inherit",
+                          }}
+                        >
+                          <td style={{ padding: "10px", fontSize: "1.1rem" }}>
+                            {medals[p.place] || `#${p.place}`}
+                          </td>
+                          <td style={{ padding: "10px" }}>
+                            {p.nickname} {isMe && "(Вы)"}
+                          </td>
+                          <td style={{ padding: "10px", fontWeight: "bold" }}>
+                            {p.score}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div style={{ marginTop: "30px" }}>
+              <button
+                type="button"
+                onClick={handleLeaveGame}
+                disabled={isLeaving}
+                style={{
+                  padding: "12px 24px",
+                  fontSize: "1.1rem",
+                  cursor: "pointer",
+                }}
+              >
+                {isLeaving ? "Выходим..." : "Выйти в главное меню"}
+              </button>
+            </div>
           </div>
         )}
       </section>
