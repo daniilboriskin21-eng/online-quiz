@@ -3,7 +3,7 @@ import http from "node:http";
 import { Server } from "socket.io";
 import cookieParser from "cookie-parser";
 import { pool } from "./db.js";
-import { findSessionByToken } from "./session.js";
+import { findSessionByToken, hashSessionToken } from "./session.js";
 import { createRoom, joinRoom } from "./rooms.js";
 import {
   startGame,
@@ -11,6 +11,7 @@ import {
   closeCurrentRound,
   submitAnswer,
   getRoundResults,
+  continueGame,
 } from "./game.js";
 
 const app = express();
@@ -90,7 +91,11 @@ async function broadcastRoomState(roomId, roomCode) {
     let roundResults = null;
     const answersMap = new Map(); // member_id -> option_id
 
-    if (room.status === "question" || room.status === "round_results") {
+    if (
+      room.status === "question" ||
+      room.status === "round_results" ||
+      room.status === "finished"
+    ) {
       currentRound = await getCurrentRound(roomId);
 
       if (currentRound) {
@@ -103,7 +108,7 @@ async function broadcastRoomState(roomId, roomCode) {
           answersMap.set(row.member_id, row.option_id);
         }
 
-        if (room.status === "round_results") {
+        if (room.status === "round_results" || room.status === "finished") {
           roundResults = await getRoundResults(roomId, currentRound.id);
         }
       }
@@ -192,6 +197,43 @@ io.on("connection", (socket) => {
       }
     } catch (error) {
       console.error("Ошибка game:start", error.message);
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: {
+            code: error.code || "INTERNAL_ERROR",
+            message: error.message,
+          },
+        });
+      }
+    }
+  });
+
+  socket.on("game:continue", async (data, callback) => {
+    try {
+      const result = await continueGame(session.room_id, session.id);
+
+      if (result.action === "next_question") {
+        scheduleRoundTimer(
+          session.room_id,
+          session.room_code,
+          result.round.id,
+          result.round.endsAt,
+        );
+      } else if (result.action === "finished") {
+        if (roomTimers.has(session.room_id)) {
+          clearTimeout(roomTimers.get(session.room_id));
+          roomTimers.delete(session.room_id);
+        }
+      }
+
+      await broadcastRoomState(session.room_id, session.room_code);
+
+      if (typeof callback === "function") {
+        callback({ ok: true, data: result });
+      }
+    } catch (error) {
+      console.error("Ошибка game:continue:", error.message);
       if (typeof callback === "function") {
         callback({
           ok: false,
@@ -315,6 +357,34 @@ app.get("/api/session", async (req, res) => {
       error: {
         code: "INTERNAL_ERROR",
         message: "Не удалось проверить сессию",
+      },
+    });
+  }
+});
+
+app.post("/api/session/leave", async (req, res) => {
+  try {
+    const token = req.cookies.session_token;
+
+    if (token) {
+      const tokenHash = hashSessionToken(token);
+      await pool.query(
+        `UPDATE members
+        SET session_revoked_at = now()
+        WHERE session_token_hash = $1`,
+        [tokenHash],
+      );
+    }
+
+    res.clearCookie("session_token");
+    res.json({ data: { success: true } });
+  } catch (error) {
+    console.error("Ошибка выхода из сессии:", error.message);
+    res.clearCookie("session_token");
+    res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Не удалось выйти из игры",
       },
     });
   }
