@@ -313,3 +313,120 @@ export async function getRoundResults(roomId, roundId) {
     leaderboard,
   };
 }
+
+export async function continueGame(roomId, memberId) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const memberResult = await client.query(
+      `SELECT id, role FROM members WHERE id = $1 AND room_id = $2`,
+      [memberId, roomId],
+    );
+
+    if (
+      memberResult.rows.length === 0 ||
+      memberResult.rows[0].role !== "host"
+    ) {
+      const error = new Error("Только ведущий может продолжить игру");
+      error.code = "FORBIDDEN";
+      throw error;
+    }
+
+    const roomResult = await client.query(
+      `SELECT id, status, quiz_id FROM rooms WHERE id = $1 FOR UPDATE`,
+      [roomId],
+    );
+
+    if (roomResult.rows.length === 0) {
+      const error = new Error("Комната не найдена");
+      error.code = "ROOM_NOT_FOUND";
+      throw error;
+    }
+
+    const room = roomResult.rows[0];
+
+    if (room.status !== "round_results") {
+      const error = new Error(
+        "Продолжить игру можно только после подведения итогов раунда",
+      );
+      error.code = "INVALID_STATE";
+      throw error;
+    }
+
+    const lastRoundResult = await client.query(
+      `SELECT r.id, q.position 
+       FROM rounds r
+       JOIN questions q ON q.id = r.question_id
+       WHERE r.room_id = $1
+       ORDER BY r.started_at DESC
+       LIMIT 1`,
+      [roomId],
+    );
+
+    const currentPosition = lastRoundResult.rows[0]?.position ?? 0;
+
+    const nextQuestionResult = await client.query(
+      `SELECT id, text, position, duration_seconds 
+       FROM questions 
+       WHERE quiz_id = $1 AND position > $2 
+       ORDER BY position ASC 
+       LIMIT 1`,
+      [room.quiz_id, currentPosition],
+    );
+
+    if (nextQuestionResult.rows.length === 0) {
+      await client.query(`UPDATE rooms SET status = 'finished' WHERE id = $1`, [
+        roomId,
+      ]);
+
+      await client.query("COMMIT");
+      return { action: "finished" };
+    }
+
+    const nextQuestion = nextQuestionResult.rows[0];
+
+    await client.query(`UPDATE rooms SET status = 'question' WHERE id = $1`, [
+      roomId,
+    ]);
+
+    const roundResult = await client.query(
+      `INSERT INTO rounds (room_id, question_id, started_at, ends_at)
+       VALUES ($1, $2, now(), now() + ($3 || ' seconds')::interval)
+       RETURNING id, question_id, started_at, ends_at`,
+      [roomId, nextQuestion.id, nextQuestion.duration_seconds],
+    );
+
+    const round = roundResult.rows[0];
+
+    const optionsResult = await client.query(
+      `SELECT id, text 
+       FROM options 
+       WHERE question_id = $1 
+       ORDER BY position ASC`,
+      [nextQuestion.id],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      action: "next_question",
+      round: {
+        id: round.id,
+        number: nextQuestion.position,
+        question: {
+          id: nextQuestion.id,
+          text: nextQuestion.text,
+          options: optionsResult.rows,
+        },
+        endsAt: round.ends_at.toISOString(),
+      },
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
