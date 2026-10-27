@@ -467,13 +467,7 @@ function App() {
               <p style={{ color: "#666" }}>Выберите вариант ответа:</p>
             )}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "10px",
-              }}
-            >
+            <div className="options-grid">
               {roomState.round.question.options.map((option) => {
                 const isSelected = roomState?.myAnswer?.optionId === option.id;
                 const isDisabled =
@@ -523,14 +517,7 @@ function App() {
               {roomState.round.question.text}
             </h3>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "10px",
-                marginBottom: "25px",
-              }}
-            >
+            <div className="options-grid" style={{ marginBottom: "25px" }}>
               {roomState.round.question.options.map((option) => {
                 const isCorrect =
                   roomState?.results?.correctOptionId === option.id;
