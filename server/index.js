@@ -46,6 +46,40 @@ function scheduleRoundTimer(roomId, roomCode, roundId, endsAtIso) {
   roomTimers.set(roomId, timer);
 }
 
+async function recoverActiveRounds() {
+  try {
+    const activeRoundsResult = await pool.query(
+      `SELECT r.id AS room_id, r.code AS room_code, rd.id AS round_id, rd.ends_at
+       FROM rooms r
+       JOIN rounds rd ON rd.room_id = r.id
+       WHERE r.status = 'question' AND rd.closed_at IS NULL`,
+    );
+
+    for (const row of activeRoundsResult.rows) {
+      const delayMs = new Date(row.ends_at).getTime() - Date.now();
+
+      if (delayMs <= 0) {
+        await closeCurrentRound(row.room_id, row.round_id);
+        console.log(
+          `[Recovery] Закрыт просроченный раунд ${row.round_id} в комнате ${row.room_code}`,
+        );
+      } else {
+        scheduleRoundTimer(
+          row.room_id,
+          row.room_code,
+          row.round_id,
+          row.ends_at.toISOString(),
+        );
+        console.log(
+          `[Recovery] Восстановлен таймер раунда ${row.round_id} в комнате ${row.room_code} (осталось ${Math.round(delayMs / 1000)} сек)`,
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Ошибка восстановления раундов при старте:", error.message);
+  }
+}
+
 function isMemberOnline(memberId) {
   const sockets = memberSockets.get(memberId);
   return Boolean(sockets && sockets.size > 0);
@@ -620,6 +654,7 @@ app.post("/api/rooms/:code/join", async (req, res) => {
   }
 });
 
-server.listen(port, () => {
+server.listen(port, async () => {
   console.log(`Сервер запущен: http://localhost:${port}`);
+  await recoverActiveRounds();
 });
