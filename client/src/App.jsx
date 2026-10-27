@@ -63,6 +63,8 @@ function App() {
   const [continueError, setContinueError] = useState("");
   const [isLeaving, setIsLeaving] = useState(false);
 
+  const [sessionError, setSessionError] = useState("");
+
   function handleContinueGame() {
     if (!socketRef.current) return;
     setIsContinuing(true);
@@ -230,11 +232,12 @@ function App() {
       try {
         const response = await fetch("/api/session");
         if (!response.ok) {
-          return;
+          throw new Error("Сервер временно недоступен. Проверьте соединение.");
         }
 
         const sessionData = await response.json();
         if (!sessionData.data?.roomCode) {
+          // Сессии действительно нет — показываем главное меню
           return;
         }
 
@@ -242,7 +245,15 @@ function App() {
           `/api/rooms/${sessionData.data.roomCode}`,
         );
         if (!roomResponse.ok) {
-          return;
+          if (
+            roomResponse.status === 404 ||
+            roomResponse.status === 401 ||
+            roomResponse.status === 403
+          ) {
+            // Комната удалена или сессия истекла — выходим в меню
+            return;
+          }
+          throw new Error("Сервер временно недоступен. Проверьте соединение.");
         }
 
         const roomResult = await roomResponse.json();
@@ -252,6 +263,12 @@ function App() {
         }
       } catch (error) {
         console.error("Ошибка восстановления сессии:", error);
+        if (!ignore) {
+          setSessionError(
+            error.message ||
+              "Сервер временно недоступен. Проверьте соединение.",
+          );
+        }
       } finally {
         if (!ignore) {
           setIsCheckingSession(false);
@@ -295,6 +312,27 @@ function App() {
     return (
       <section id="center">
         <p>Загрузка...</p>
+      </section>
+    );
+  }
+
+  if (sessionError) {
+    return (
+      <section id="center">
+        <h2>🔴 Ошибка подключения</h2>
+        <p style={{ color: "red" }}>{sessionError}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setSessionError("");
+            setIsCheckingSession(true);
+            // При клике повторно вызываем проверку сессии или перезагружаем
+            window.location.reload();
+          }}
+          style={{ padding: "10px 20px", marginTop: "15px", cursor: "pointer" }}
+        >
+          Попробовать снова
+        </button>
       </section>
     );
   }
