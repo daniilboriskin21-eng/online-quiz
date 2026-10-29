@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Sparkles, HelpCircle, LogIn, Plus, RefreshCw } from "lucide-react";
 
 export function HomeView({
   joinCode,
@@ -25,7 +26,10 @@ export function HomeView({
   return (
     <div className="app-container">
       <header className="hero-header">
-        <h1>Онлайн-квиз</h1>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <Sparkles size={28} style={{ color: "var(--primary)" }} />
+          <h1>Онлайн-квиз</h1>
+        </div>
         <p className="hero-subtitle">
           Битва эрудитов в реальном времени с друзьями и коллегами
         </p>
@@ -90,7 +94,8 @@ export function HomeView({
               disabled={isJoining}
               style={{ width: "100%", marginTop: "8px", padding: "12px" }}
             >
-              {isJoining ? "Входим…" : "Войти в игру →"}
+              <LogIn size={16} />
+              {isJoining ? "Входим…" : "Войти в игру"}
             </button>
 
             {joinError && <div className="form-error">{joinError}</div>}
@@ -120,6 +125,7 @@ export function HomeView({
                 className="btn-secondary"
                 onClick={onLoadQuizzes}
               >
+                <RefreshCw size={14} />
                 Повторить попытку
               </button>
             </div>
@@ -134,7 +140,10 @@ export function HomeView({
                   {quizzes.map((quiz) => (
                     <div key={quiz.id} className="quiz-item">
                       <div className="quiz-info">
-                        <h4>🎯 {quiz.title}</h4>
+                        <h4 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <HelpCircle size={16} style={{ color: "var(--primary)" }} />
+                          {quiz.title}
+                        </h4>
                         <span>Вопросов: {quiz.questionCount}</span>
                       </div>
                       <button
@@ -144,6 +153,7 @@ export function HomeView({
                         disabled={isCreatingRoom}
                         style={{ fontSize: "0.85rem", padding: "8px 14px" }}
                       >
+                        <Plus size={14} />
                         {isCreatingRoom ? "Создаем…" : "Создать"}
                       </button>
                     </div>

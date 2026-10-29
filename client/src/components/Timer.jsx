@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Clock } from "lucide-react";
 
 export function Timer({ endsAt }) {
   const [secondsLeft, setSecondsLeft] = useState(() =>
@@ -25,7 +26,7 @@ export function Timer({ endsAt }) {
 
   return (
     <div className={`timer-badge ${isDanger ? "danger" : ""}`}>
-      <span>⏱</span>
+      <Clock size={16} />
       <span>{secondsLeft} с</span>
     </div>
   );

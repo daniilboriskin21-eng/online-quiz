@@ -1,3 +1,5 @@
+import { Trophy, Crown, Medal, Award, Home, Loader2 } from "lucide-react";
+
 export function FinishedView({
   roomState,
   currentUser,
@@ -17,7 +19,22 @@ export function FinishedView({
   return (
     <section className="glass-card finished-card">
       <div>
-        <div style={{ fontSize: "2.5rem", marginBottom: "8px" }}>🎉</div>
+        <div
+          style={{
+            width: "64px",
+            height: "64px",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(234, 179, 8, 0.25) 0%, rgba(234, 179, 8, 0.05) 100%)",
+            border: "1px solid rgba(234, 179, 8, 0.4)",
+            boxShadow: "0 0 24px rgba(234, 179, 8, 0.25)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 14px",
+          }}
+        >
+          <Trophy size={32} style={{ color: "#fbbf24" }} />
+        </div>
         <h1>Викторина завершена!</h1>
         <p style={{ marginTop: "4px" }}>
           Квиз: <strong style={{ color: "var(--text-primary)" }}>{quizTitle}</strong>
@@ -29,7 +46,21 @@ export function FinishedView({
         {/* 2-е место (слева) */}
         {top2 && (
           <div className="podium-place podium-2">
-            <div className="podium-avatar">🥈</div>
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "50%",
+                background: "rgba(148, 163, 184, 0.15)",
+                border: "1px solid rgba(148, 163, 184, 0.4)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "8px",
+              }}
+            >
+              <Medal size={24} style={{ color: "#cbd5e1" }} />
+            </div>
             <span className="podium-name" title={top2.nickname}>
               {top2.nickname}
             </span>
@@ -41,7 +72,22 @@ export function FinishedView({
         {/* 1-е место (в центре) */}
         {top1 && (
           <div className="podium-place podium-1">
-            <div className="podium-avatar">👑</div>
+            <div
+              style={{
+                width: "52px",
+                height: "52px",
+                borderRadius: "50%",
+                background: "rgba(234, 179, 8, 0.15)",
+                border: "1px solid rgba(234, 179, 8, 0.5)",
+                boxShadow: "0 0 16px rgba(234, 179, 8, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "8px",
+              }}
+            >
+              <Crown size={28} style={{ color: "#fbbf24" }} />
+            </div>
             <span className="podium-name" title={top1.nickname}>
               {top1.nickname}
             </span>
@@ -53,7 +99,21 @@ export function FinishedView({
         {/* 3-е место (справа) */}
         {top3 && (
           <div className="podium-place podium-3">
-            <div className="podium-avatar">🥉</div>
+            <div
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                background: "rgba(217, 119, 6, 0.15)",
+                border: "1px solid rgba(217, 119, 6, 0.4)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "8px",
+              }}
+            >
+              <Award size={22} style={{ color: "#f59e0b" }} />
+            </div>
             <span className="podium-name" title={top3.nickname}>
               {top3.nickname}
             </span>
@@ -101,9 +161,10 @@ export function FinishedView({
           className="btn-primary"
           onClick={onLeave}
           disabled={isLeaving}
-          style={{ padding: "12px 28px", fontSize: "1.05rem" }}
+          style={{ padding: "12px 28px", fontSize: "1.05rem", display: "inline-flex", alignItems: "center", gap: "8px" }}
         >
-          {isLeaving ? "Выходим…" : "В главное меню 🏠"}
+          {isLeaving ? <Loader2 size={18} /> : <Home size={18} />}
+          {isLeaving ? "Выходим…" : "В главное меню"}
         </button>
       </div>
     </section>

@@ -1,3 +1,4 @@
+import { Crown, CheckCircle2, Check } from "lucide-react";
 import { Timer } from "./Timer.jsx";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
@@ -37,12 +38,14 @@ export function QuestionView({
 
       {/* Информационный баннер статуса */}
       {isHost ? (
-        <div className="answer-status-pill info">
-          👑 Вы ведущий. Игроки делают выбор…
+        <div className="answer-status-pill info" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+          <Crown size={16} />
+          Вы ведущий. Игроки делают выбор…
         </div>
       ) : myAnswer ? (
-        <div className="answer-status-pill success">
-          ✓ Ваш ответ принят! Ожидаем окончания времени…
+        <div className="answer-status-pill success" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+          <CheckCircle2 size={16} />
+          Ваш ответ принят! Ожидаем окончания времени…
         </div>
       ) : (
         <div className="answer-status-pill info">
@@ -71,7 +74,7 @@ export function QuestionView({
             >
               <span className="option-letter">{letter}</span>
               <span style={{ flexGrow: 1 }}>{option.text}</span>
-              {isSelected && <span style={{ color: "var(--primary)" }}>✓</span>}
+              {isSelected && <Check size={16} style={{ color: "var(--primary)" }} />}
             </button>
           );
         })}

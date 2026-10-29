@@ -1,3 +1,5 @@
+import { Users, Play, Loader2 } from "lucide-react";
+
 export function LobbyView({
   roomState,
   currentUser,
@@ -21,9 +23,13 @@ export function LobbyView({
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <span>Ведущий:</span>
           {hostOnline ? (
-            <span className="badge badge-online">🟢 в сети</span>
+            <span className="badge badge-online">
+              <span className="status-dot online" style={{ width: 6, height: 6 }} /> в сети
+            </span>
           ) : (
-            <span className="badge badge-offline">⚪ не в сети</span>
+            <span className="badge badge-offline">
+              <span className="status-dot offline" style={{ width: 6, height: 6 }} /> не в сети
+            </span>
           )}
         </div>
         <div style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
@@ -43,7 +49,21 @@ export function LobbyView({
 
         {playersCount === 0 ? (
           <div className="lobby-empty">
-            <div style={{ fontSize: "2rem", marginBottom: "8px" }}>👥</div>
+            <div
+              style={{
+                width: "56px",
+                height: "56px",
+                borderRadius: "50%",
+                background: "rgba(99, 102, 241, 0.1)",
+                border: "1px solid rgba(99, 102, 241, 0.25)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 12px",
+              }}
+            >
+              <Users size={28} style={{ color: "var(--primary)" }} />
+            </div>
             <h4 style={{ color: "var(--text-primary)", marginBottom: "4px" }}>
               Пока никого нет
             </h4>
@@ -81,7 +101,8 @@ export function LobbyView({
             disabled={isStartingGame || playersCount === 0}
             style={{ width: "100%", padding: "14px", fontSize: "1.05rem" }}
           >
-            {isStartingGame ? "Запускаем викторину…" : "🚀 Начать игру"}
+            <Play size={18} fill="currentColor" />
+            {isStartingGame ? "Запускаем викторину…" : "Начать игру"}
           </button>
           {playersCount === 0 && (
             <p
@@ -102,8 +123,12 @@ export function LobbyView({
           )}
         </div>
       ) : (
-        <div className="host-waiting-notice">
-          ⏳ Ожидаем, пока ведущий запустит викторину...
+        <div
+          className="host-waiting-notice"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+        >
+          <Loader2 size={16} />
+          Ожидаем, пока ведущий запустит викторину...
         </div>
       )}
     </section>
