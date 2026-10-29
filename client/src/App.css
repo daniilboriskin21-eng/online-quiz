@@ -339,6 +339,21 @@
   }
 }
 
+/* Сетка вариантов ответа */
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .options-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
 /* Карточки вариантов ответа */
 .option-btn {
   display: flex;
