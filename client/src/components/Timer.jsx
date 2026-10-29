@@ -21,14 +21,12 @@ export function Timer({ endsAt }) {
     return () => clearInterval(interval);
   }, [endsAt]);
 
+  const isDanger = secondsLeft <= 5;
+
   return (
-    <strong
-      style={{
-        fontSize: "1.2rem",
-        color: secondsLeft <= 5 ? "red" : "inherit",
-      }}
-    >
-      ⏱️ {secondsLeft} сек.
-    </strong>
+    <div className={`timer-badge ${isDanger ? "danger" : ""}`}>
+      <span>⏱</span>
+      <span>{secondsLeft} с</span>
+    </div>
   );
 }

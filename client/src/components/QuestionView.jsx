@@ -1,5 +1,7 @@
 import { Timer } from "./Timer.jsx";
 
+const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
+
 export function QuestionView({
   roomState,
   currentUser,
@@ -10,71 +12,72 @@ export function QuestionView({
   const round = roomState?.round;
   const question = round?.question;
   const myAnswer = roomState?.myAnswer;
+  const totalQuestions = roomState?.room?.questionCount || 1;
+  const currentNumber = round?.number || 1;
+  const isHost = currentUser?.role === "host";
+
+  const progressPercent = Math.min(100, Math.round((currentNumber / totalQuestions) * 100));
 
   return (
-    <div style={{ width: "100%", maxWidth: "500px" }}>
+    <section className="glass-card question-card">
+      {/* Прогресс-бар вверху карточки */}
       <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span>
-          Вопрос {round.number} из {roomState.room.questionCount}
+        className="question-progress-bar"
+        style={{ width: `${progressPercent}%` }}
+      />
+
+      <div className="question-header">
+        <span className="badge badge-player">
+          Вопрос {currentNumber} из {totalQuestions}
         </span>
         <Timer endsAt={round.endsAt} />
       </div>
 
-      <h2 style={{ margin: "20px 0" }}>{question.text}</h2>
+      <h2 className="question-text">{question.text}</h2>
 
-      {currentUser?.role === "host" ? (
-        <p style={{ color: "#666", fontStyle: "italic" }}>
-          Вы ведущий. Игроки выбирают ответы...
-        </p>
+      {/* Информационный баннер статуса */}
+      {isHost ? (
+        <div className="answer-status-pill info">
+          👑 Вы ведущий. Игроки делают выбор…
+        </div>
       ) : myAnswer ? (
-        <p style={{ color: "green", fontWeight: "bold" }}>
-          ✅ Ваш ответ принят! Ожидаем окончания времени...
-        </p>
+        <div className="answer-status-pill success">
+          ✓ Ваш ответ принят! Ожидаем окончания времени…
+        </div>
       ) : (
-        <p style={{ color: "#666" }}>Выберите вариант ответа:</p>
+        <div className="answer-status-pill info">
+          Выберите правильный вариант ответа:
+        </div>
       )}
 
+      {/* Сетка вариантов ответа */}
       <div className="options-grid">
-        {question.options.map((option) => {
+        {question.options.map((option, index) => {
           const isSelected = myAnswer?.optionId === option.id;
-          const isDisabled =
-            currentUser?.role === "host" ||
-            Boolean(myAnswer) ||
-            isSubmitting;
+          const isDisabled = isHost || Boolean(myAnswer) || isSubmitting;
+          const letter = OPTION_LETTERS[index] || "•";
 
           return (
             <button
               key={option.id}
               type="button"
+              className={`option-btn ${isSelected ? "selected" : ""}`}
               onClick={() => onSubmitAnswer(option.id)}
               disabled={isDisabled}
               style={{
-                padding: "15px",
-                fontSize: "1rem",
+                opacity: isDisabled && !isSelected ? 0.65 : 1,
                 cursor: isDisabled ? "default" : "pointer",
-                border: isSelected ? "3px solid #2196F3" : "1px solid #ccc",
-                backgroundColor: isSelected ? "#e3f2fd" : "inherit",
-                fontWeight: isSelected ? "bold" : "normal",
               }}
             >
-              {isSelected && "✓ "}
-              {option.text}
+              <span className="option-letter">{letter}</span>
+              <span style={{ flexGrow: 1 }}>{option.text}</span>
+              {isSelected && <span style={{ color: "var(--primary)" }}>✓</span>}
             </button>
           );
         })}
       </div>
 
-      {submitError && (
-        <p role="alert" style={{ color: "red", marginTop: "10px" }}>
-          {submitError}
-        </p>
-      )}
-    </div>
+      {submitError && <div className="form-error">{submitError}</div>}
+    </section>
   );
 }

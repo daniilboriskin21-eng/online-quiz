@@ -21,9 +21,9 @@ function App() {
 
   if (game.isCheckingSession) {
     return (
-      <section id="center">
-        <p>Загрузка...</p>
-      </section>
+      <div className="app-container" style={{ justifyContent: "center", minHeight: "60vh" }}>
+        <p style={{ color: "var(--text-dim)", fontSize: "1.1rem" }}>Подключение к игре…</p>
+      </div>
     );
   }
 
@@ -41,7 +41,7 @@ function App() {
       game.roomState?.room.status || game.currentRoom.status;
 
     return (
-      <section id="center">
+      <main className="app-container">
         <RoomHeader
           currentRoom={game.currentRoom}
           currentUser={game.currentUser}
@@ -88,7 +88,7 @@ function App() {
             onLeave={game.handleLeaveGame}
           />
         )}
-      </section>
+      </main>
     );
   }
 

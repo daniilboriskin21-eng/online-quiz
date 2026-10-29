@@ -9,127 +9,117 @@ export function RoundResultsView({
   const question = round?.question;
   const results = roomState?.results;
   const myAnswer = roomState?.myAnswer;
+  const isHost = currentUser?.role === "host";
+  const totalQuestions = roomState?.room?.questionCount || 1;
+  const currentNumber = round?.number || 1;
+  const isLastQuestion = currentNumber >= totalQuestions;
 
   return (
-    <div style={{ width: "100%", maxWidth: "500px", textAlign: "center" }}>
-      <h2>⏰ Время вышло!</h2>
-      <h3 style={{ margin: "15px 0" }}>{question.text}</h3>
+    <section className="glass-card results-card">
+      <div style={{ textAlign: "center" }}>
+        <span className="badge badge-host" style={{ marginBottom: "8px" }}>
+          ⏰ Время вышло
+        </span>
+        <h2>Итоги раунда {currentNumber} из {totalQuestions}</h2>
+        <p style={{ marginTop: "6px", fontSize: "1.05rem", color: "var(--text-primary)" }}>
+          {question.text}
+        </p>
+      </div>
 
-      <div className="options-grid" style={{ marginBottom: "25px" }}>
+      {/* Варианты ответов с подсветкой */}
+      <div className="options-grid">
         {question.options.map((option) => {
           const isCorrect = results?.correctOptionId === option.id;
           const isMyChoice = myAnswer?.optionId === option.id;
 
-          let border = "1px solid #ccc";
-          let bg = "inherit";
-
-          if (isCorrect) {
-            border = "3px solid #4CAF50";
-            bg = "#e8f5e9";
-          } else if (isMyChoice && !isCorrect) {
-            border = "3px solid #f44336";
-            bg = "#ffebee";
-          }
+          let statusClass = "dimmed";
+          if (isCorrect) statusClass = "correct";
+          else if (isMyChoice && !isCorrect) statusClass = "wrong";
 
           return (
-            <div
-              key={option.id}
-              style={{
-                padding: "15px",
-                fontSize: "1rem",
-                border,
-                backgroundColor: bg,
-                borderRadius: "6px",
-                fontWeight: isCorrect || isMyChoice ? "bold" : "normal",
-              }}
-            >
-              {isCorrect && "🟢 "}
-              {isMyChoice && !isCorrect && "🔴 "}
-              {option.text}
-              {isCorrect && " (Верно!)"}
+            <div key={option.id} className={`result-option ${statusClass}`}>
+              <span>{option.text}</span>
+              {isCorrect && (
+                <span className="badge badge-online" style={{ fontSize: "0.75rem" }}>
+                  ✓ Верно
+                </span>
+              )}
+              {isMyChoice && !isCorrect && (
+                <span className="badge" style={{ background: "var(--danger-bg)", color: "var(--danger)", border: "1px solid var(--danger-border)", fontSize: "0.75rem" }}>
+                  ✗ Ваш выбор
+                </span>
+              )}
             </div>
           );
         })}
       </div>
 
+      {/* Таблица лидеров */}
       {results?.leaderboard && (
-        <div>
-          <h3>🏆 Таблица лидеров</h3>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginTop: "10px",
-            }}
-          >
-            <thead>
-              <tr style={{ borderBottom: "2px solid #ccc" }}>
-                <th style={{ padding: "8px" }}>Место</th>
-                <th style={{ padding: "8px" }}>Игрок</th>
-                <th style={{ padding: "8px" }}>Очки</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.leaderboard.map((p) => {
-                const isMe = p.memberId === currentUser?.memberId;
-                return (
-                  <tr
-                    key={p.memberId}
-                    style={{
-                      borderBottom: "1px solid #eee",
-                      fontWeight: isMe ? "bold" : "normal",
-                      backgroundColor: isMe ? "#f5f5f5" : "inherit",
-                    }}
-                  >
-                    <td style={{ padding: "8px" }}>#{p.place}</td>
-                    <td style={{ padding: "8px" }}>
-                      {p.nickname} {isMe && "(Вы)"}
-                    </td>
-                    <td style={{ padding: "8px" }}>{p.score}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ marginTop: "8px" }}>
+          <h3 style={{ marginBottom: "12px" }}>🏆 Текущие баллы игроков</h3>
+          <div className="leaderboard-card">
+            <table className="leaderboard-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "80px" }}>Место</th>
+                  <th>Игрок</th>
+                  <th style={{ width: "100px", textAlign: "right" }}>Баллы</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.leaderboard.map((p) => {
+                  const isMe = p.memberId === currentUser?.memberId;
+                  const medals = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+                  return (
+                    <tr
+                      key={p.memberId}
+                      className={`leaderboard-row ${isMe ? "is-me" : ""}`}
+                    >
+                      <td>{medals[p.place] || `#${p.place}`}</td>
+                      <td>
+                        {p.nickname} {isMe && <span style={{ color: "var(--primary)" }}>(Вы)</span>}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <span className="score-chip">{p.score}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {currentUser?.role === "host" ? (
-        <div style={{ marginTop: "25px" }}>
+      {/* Действия ведущего или ожидание игроков */}
+      {isHost ? (
+        <div style={{ marginTop: "12px" }}>
           <button
             type="button"
+            className="btn-primary"
             onClick={onContinue}
             disabled={isContinuing}
-            style={{
-              padding: "12px 24px",
-              fontSize: "1.1rem",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
+            style={{ width: "100%", padding: "14px", fontSize: "1.05rem" }}
           >
             {isContinuing
               ? "Загружаем…"
-              : round.number < roomState.room.questionCount
+              : !isLastQuestion
                 ? "Следующий вопрос →"
-                : "Показать итоги игры 🏆"}
+                : "Показать итоги викторины 🏆"}
           </button>
           {continueError && (
-            <p role="alert" style={{ color: "red", marginTop: "10px" }}>
+            <div className="form-error" style={{ marginTop: "12px" }}>
               {continueError}
-            </p>
+            </div>
           )}
         </div>
       ) : (
-        <p
-          style={{
-            marginTop: "20px",
-            color: "#666",
-            fontStyle: "italic",
-          }}
-        >
-          Ожидаем, пока ведущий продолжит игру...
-        </p>
+        <div className="host-waiting-notice">
+          ⏳ Ожидаем, пока ведущий перейдет к следующему шагу...
+        </div>
       )}
-    </div>
+    </section>
   );
 }

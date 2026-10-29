@@ -1,15 +1,20 @@
 export function ConnectionError({ error, onRetry }) {
   return (
-    <section id="center">
-      <h2>🔴 Ошибка подключения</h2>
-      <p style={{ color: "red" }}>{error}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        style={{ padding: "10px 20px", marginTop: "15px", cursor: "pointer" }}
-      >
-        Попробовать снова
-      </button>
-    </section>
+    <div className="app-container">
+      <section className="glass-card error-card">
+        <div style={{ fontSize: "2.5rem" }}>📡</div>
+        <h2>Ошибка подключения</h2>
+        <div className="form-error">{error}</div>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={onRetry}
+          style={{ marginTop: "8px" }}
+        >
+          Попробовать снова 🔄
+        </button>
+      </section>
+    </div>
   );
 }
+
