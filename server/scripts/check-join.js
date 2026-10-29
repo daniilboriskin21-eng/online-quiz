@@ -1,5 +1,5 @@
-import { pool } from "./db.js";
-import { createRoom, joinRoom } from "./rooms.js";
+import { pool } from "../db/index.js";
+import { createRoom, joinRoom } from "../services/room.service.js";
 
 try {
   // 1. Проверка валидации
@@ -31,7 +31,7 @@ try {
   // 3. Создаем комнату для тестов
   const quizzes = await pool.query(
     "SELECT id FROM quizzes WHERE title = $1",
-    ["Кино"]
+    ["Кино"],
   );
   const { room } = await createRoom(quizzes.rows[0].id);
   console.log(`✓ Создана тестовая комната: ${room.code}`);
@@ -49,17 +49,24 @@ try {
     throw new Error("Ожидалась ошибка NICKNAME_TAKEN");
   } catch (err) {
     if (err.code !== "NICKNAME_TAKEN") throw err;
-    console.log("✓ Занятый никнейм «алиса» в нижнем регистре успешно отклонён");
+    console.log("✓ Проверка регистра и занятого никнейма пройдена");
   }
 
-  // 6. Второй игрок входит
-  const player2 = await joinRoom(room.code, "Борис");
-  if (player2.member.role !== "player" || player2.member.nickname !== "Борис") {
-    throw new Error("Данные второго игрока некорректны");
-  }
-  console.log("✓ Игрок «Борис» успешно вошел");
+  // 6. Проверка блокировки входа после старта
+  await pool.query(
+    "UPDATE rooms SET status = 'question' WHERE id = $1",
+    [room.id],
+  );
 
-  console.log("\nВсе проверки функции joinRoom успешно пройдены!");
+  try {
+    await joinRoom(room.code, "Борис");
+    throw new Error("Ожидалась ошибка GAME_ALREADY_STARTED");
+  } catch (err) {
+    if (err.code !== "GAME_ALREADY_STARTED") throw err;
+    console.log("✓ Проверка запрета входа после начала игры пройдена");
+  }
+
+  console.log("\nВсе проверки входа успешно пройдены!");
 } catch (error) {
   console.error("Ошибка при проверке joinRoom:", error.message);
   process.exitCode = 1;

@@ -1,6 +1,6 @@
-import { pool } from "./db.js";
-import { findSessionByToken } from "./session.js";
-import { createRoom } from "./rooms.js";
+import { pool } from "../db/index.js";
+import { findSessionByToken } from "../services/session.service.js";
+import { createRoom } from "../services/room.service.js";
 
 try {
   // 1. Проверяем несуществующий токен и некорректный ввод

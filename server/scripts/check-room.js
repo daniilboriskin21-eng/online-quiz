@@ -1,10 +1,10 @@
-import { pool } from "./db.js";
-import { createRoom } from "./rooms.js";
+import { pool } from "../db/index.js";
+import { createRoom } from "../services/room.service.js";
 
 try {
   const quizzes = await pool.query(
     "SELECT id FROM quizzes WHERE title = $1",
-    ["Кино"]
+    ["Кино"],
   );
 
   if (quizzes.rows.length !== 1) {
