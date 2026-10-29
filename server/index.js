@@ -3,8 +3,8 @@ import http from "node:http";
 import { Server } from "socket.io";
 import cookieParser from "cookie-parser";
 
-import { setupSocket, broadcastRoomState } from "./socket.js";
-import { recoverActiveRounds } from "./timers.js";
+import { setupSocket, broadcastRoomState } from "./socket/index.js";
+import { recoverActiveRounds } from "./services/timer.service.js";
 import { quizzesRouter } from "./routes/quizzes.js";
 import { sessionRouter } from "./routes/session.js";
 import { createRoomsRouter } from "./routes/rooms.js";

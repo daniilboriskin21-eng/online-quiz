@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { pool } from "../db.js";
-import { findSessionByToken, hashSessionToken } from "../session.js";
+import { pool } from "../db/index.js";
+import { findSessionByToken, hashSessionToken } from "../services/session.service.js";
 
 export const sessionRouter = Router();
 

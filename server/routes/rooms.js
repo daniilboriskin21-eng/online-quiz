@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { pool } from "../db.js";
-import { findSessionByToken } from "../session.js";
-import { createRoom, joinRoom } from "../rooms.js";
+import { pool } from "../db/index.js";
+import { findSessionByToken } from "../services/session.service.js";
+import { createRoom, joinRoom } from "../services/room.service.js";
 
 export function createRoomsRouter(broadcastRoomState) {
   const router = Router();

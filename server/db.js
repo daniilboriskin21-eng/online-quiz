@@ -1,7 +1,1 @@
-import pg from "pg";
-
-const { Pool } = pg;
-
-export const pool = new Pool({
-  connectionTimeoutMillis: 5000,
-});
+export { pool } from "./db/index.js";
