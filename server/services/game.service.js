@@ -58,7 +58,7 @@ export async function startGame(roomId, memberId) {
     }
 
     const questionResult = await client.query(
-      `SELECT id, text, position, duration_seconds
+      `SELECT id, text, position, duration_seconds, type
         FROM questions
         WHERE quiz_id = $1
         ORDER BY position ASC
@@ -90,13 +90,17 @@ export async function startGame(roomId, memberId) {
 
     const round = roundResult.rows[0];
 
-    const optionsResult = await client.query(
-      `SELECT id, text
+    let options = [];
+    if (question.type === "choice") {
+      const optionsResult = await client.query(
+        `SELECT id, text
         FROM options
         WHERE question_id = $1
         ORDER BY position ASC`,
-      [question.id],
-    );
+        [question.id],
+      );
+      options = optionsResult.rows;
+    }
 
     await client.query("COMMIT");
 
@@ -106,7 +110,8 @@ export async function startGame(roomId, memberId) {
       question: {
         id: question.id,
         text: question.text,
-        options: optionsResult.rows,
+        type: question.type,
+        options,
       },
       endsAt: round.ends_at.toISOString(),
     };
@@ -121,7 +126,7 @@ export async function startGame(roomId, memberId) {
 export async function getCurrentRound(roomId) {
   const roundResult = await pool.query(
     `SELECT r.id, r.question_id, r.started_at, r.ends_at, r.closed_at,
-            q.text AS question_text, q.position AS question_position
+            q.text AS question_text, q.position AS question_position, q.type AS question_type
         FROM rounds r
         JOIN questions q ON q.id = r.question_id
         WHERE r.room_id = $1
@@ -136,13 +141,17 @@ export async function getCurrentRound(roomId) {
 
   const round = roundResult.rows[0];
 
-  const optionsResult = await pool.query(
-    `SELECT id, text
+  let options = [];
+  if (round.question_type === "choice") {
+    const optionsResult = await pool.query(
+      `SELECT id, text
     FROM options
     WHERE question_id = $1
     ORDER BY position ASC`,
-    [round.question_id],
-  );
+      [round.question_id],
+    );
+    options = optionsResult.rows;
+  }
 
   return {
     id: round.id,
@@ -150,7 +159,8 @@ export async function getCurrentRound(roomId) {
     question: {
       id: round.question_id,
       text: round.question_text,
-      options: optionsResult.rows,
+      type: round.question_type,
+      options,
     },
     endsAt: round.ends_at.toISOString(),
     closedAt: round.closed_at ? round.closed_at.toISOString() : null,
@@ -185,7 +195,12 @@ export async function closeCurrentRound(roomId, roundId) {
   }
 }
 
-export async function submitAnswer(roomId, memberId, roundId, optionId) {
+export async function submitAnswer(roomId, memberId, roundId, answerData) {
+  const optionId =
+    typeof answerData === "object" ? answerData.optionId : answerData;
+  const textAnswer =
+    typeof answerData === "object" ? answerData.textAnswer : null;
+
   const memberResult = await pool.query(
     `SELECT id, role, room_id 
      FROM members 
@@ -205,9 +220,12 @@ export async function submitAnswer(roomId, memberId, roundId, optionId) {
   const roundResult = await pool.query(
     `SELECT r.id, r.room_id, r.question_id, r.ends_at, r.closed_at,
             (now() <= r.ends_at) AS is_within_time,
-            rm.status AS room_status
+            rm.status AS room_status,
+            q.type AS question_type,
+            q.accepted_answers
      FROM rounds r
      JOIN rooms rm ON rm.id = r.room_id
+     JOIN questions q ON q.id = r.question_id
      WHERE r.id = $1 AND r.room_id = $2`,
     [roundId, roomId],
   );
@@ -230,58 +248,127 @@ export async function submitAnswer(roomId, memberId, roundId, optionId) {
     throw error;
   }
 
-  const optionResult = await pool.query(
-    `SELECT id, question_id, is_correct 
-     FROM options 
-     WHERE id = $1 AND question_id = $2`,
-    [optionId, round.question_id],
-  );
+  // Ветка 1: Вопрос с выбором варианта (choice)
+  if (round.question_type === "choice") {
+    if (!optionId) {
+      const error = new Error("Не указан вариант ответа");
+      error.code = "VALIDATION_ERROR";
+      throw error;
+    }
 
-  if (optionResult.rows.length === 0) {
-    const error = new Error("Недопустимый вариант ответа");
+    const optionResult = await pool.query(
+      `SELECT id, question_id, is_correct 
+       FROM options 
+       WHERE id = $1 AND question_id = $2`,
+      [optionId, round.question_id],
+    );
+
+    if (optionResult.rows.length === 0) {
+      const error = new Error("Недопустимый вариант ответа");
+      error.code = "VALIDATION_ERROR";
+      throw error;
+    }
+
+    const option = optionResult.rows[0];
+
+    const existingAnswer = await pool.query(
+      `SELECT option_id 
+       FROM answers 
+       WHERE round_id = $1 AND member_id = $2`,
+      [roundId, memberId],
+    );
+
+    if (existingAnswer.rows.length > 0) {
+      if (existingAnswer.rows[0].option_id === optionId) {
+        return { optionId };
+      }
+      const error = new Error("Ответ уже был дан");
+      error.code = "ANSWER_ALREADY_SUBMITTED";
+      throw error;
+    }
+
+    const points = option.is_correct ? 1 : 0;
+
+    await pool.query(
+      `INSERT INTO answers (round_id, member_id, option_id, points, accepted_at)
+       VALUES ($1, $2, $3, $4, now())`,
+      [roundId, memberId, optionId, points],
+    );
+
+    return { optionId };
+  }
+
+  // Ветка 2: Вопрос с открытым текстовым вводом (text)
+  if (
+    !textAnswer ||
+    typeof textAnswer !== "string" ||
+    textAnswer.trim().length === 0
+  ) {
+    const error = new Error("Текстовый ответ не может быть пустым");
     error.code = "VALIDATION_ERROR";
     throw error;
   }
 
-  const option = optionResult.rows[0];
+  const trimmedText = textAnswer.trim();
 
   const existingAnswer = await pool.query(
-    `SELECT option_id 
+    `SELECT text_answer 
      FROM answers 
      WHERE round_id = $1 AND member_id = $2`,
     [roundId, memberId],
   );
 
   if (existingAnswer.rows.length > 0) {
-    if (existingAnswer.rows[0].option_id === optionId) {
-      return { optionId };
+    if (existingAnswer.rows[0].text_answer === trimmedText) {
+      return { textAnswer: trimmedText };
     }
     const error = new Error("Ответ уже был дан");
     error.code = "ANSWER_ALREADY_SUBMITTED";
     throw error;
   }
 
-  const points = option.is_correct ? 1 : 0;
+  const normalizedUser = normalizeAnswer(trimmedText);
+  const acceptedList = round.accepted_answers || [];
+  const isCorrect = acceptedList.some(
+    (accepted) => normalizeAnswer(accepted) === normalizedUser,
+  );
+  const points = isCorrect ? 1 : 0;
 
   await pool.query(
-    `INSERT INTO answers (round_id, member_id, option_id, points, accepted_at)
+    `INSERT INTO answers (round_id, member_id, text_answer, points, accepted_at)
      VALUES ($1, $2, $3, $4, now())`,
-    [roundId, memberId, optionId, points],
+    [roundId, memberId, trimmedText, points],
   );
 
-  return { optionId };
+  return { textAnswer: trimmedText };
 }
 
 export async function getRoundResults(roomId, roundId) {
-  const correctOptionResult = await pool.query(
-    `SELECT o.id 
-     FROM options o
-     JOIN rounds r ON r.question_id = o.question_id
-     WHERE r.id = $1 AND o.is_correct = true`,
+  const questionResult = await pool.query(
+    `SELECT q.type, q.accepted_answers
+     FROM rounds r
+     JOIN questions q ON q.id = r.question_id
+     WHERE r.id = $1`,
     [roundId],
   );
 
-  const correctOptionId = correctOptionResult.rows[0]?.id ?? null;
+  const questionType = questionResult.rows[0]?.type || "choice";
+  let correctOptionId = null;
+  let correctText = null;
+
+  if (questionType === "choice") {
+    const correctOptionResult = await pool.query(
+      `SELECT o.id 
+       FROM options o
+       JOIN rounds r ON r.question_id = o.question_id
+       WHERE r.id = $1 AND o.is_correct = true`,
+      [roundId],
+    );
+    correctOptionId = correctOptionResult.rows[0]?.id ?? null;
+  } else {
+    const accepted = questionResult.rows[0]?.accepted_answers || [];
+    correctText = accepted[0] ?? "";
+  }
 
   const leaderboardResult = await pool.query(
     `SELECT m.id AS "memberId",
@@ -309,7 +396,9 @@ export async function getRoundResults(roomId, roundId) {
   });
 
   return {
+    questionType,
     correctOptionId,
+    correctText,
     leaderboard,
   };
 }
@@ -368,7 +457,7 @@ export async function continueGame(roomId, memberId) {
     const currentPosition = lastRoundResult.rows[0]?.position ?? 0;
 
     const nextQuestionResult = await client.query(
-      `SELECT id, text, position, duration_seconds 
+      `SELECT id, text, position, duration_seconds, type
        FROM questions 
        WHERE quiz_id = $1 AND position > $2 
        ORDER BY position ASC 
@@ -400,13 +489,17 @@ export async function continueGame(roomId, memberId) {
 
     const round = roundResult.rows[0];
 
-    const optionsResult = await client.query(
-      `SELECT id, text 
+    let options = [];
+    if (nextQuestion.type === "choice") {
+      const optionsResult = await client.query(
+        `SELECT id, text 
        FROM options 
        WHERE question_id = $1 
        ORDER BY position ASC`,
-      [nextQuestion.id],
-    );
+        [nextQuestion.id],
+      );
+      options = optionsResult.rows;
+    }
 
     await client.query("COMMIT");
 
@@ -418,7 +511,8 @@ export async function continueGame(roomId, memberId) {
         question: {
           id: nextQuestion.id,
           text: nextQuestion.text,
-          options: optionsResult.rows,
+          type: nextQuestion.type,
+          options,
         },
         endsAt: round.ends_at.toISOString(),
       },
@@ -429,4 +523,14 @@ export async function continueGame(roomId, memberId) {
   } finally {
     client.release();
   }
+}
+
+export function normalizeAnswer(text) {
+  if (!text || typeof text !== "string") return "";
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^a-zа-я0-9\s]/gi, "") // удаляем знаки препинания (кавычки, точки, дефисы)
+    .replace(/\s+/g, " "); // схлопываем повторяющиеся пробелы
 }

@@ -102,22 +102,24 @@ export function useQuizGame() {
     });
   }
 
-  function handleSubmitAnswer(optionId) {
+  function handleSubmitAnswer(answer) {
     if (!socketRef.current || !roomState?.round) return;
     setIsSubmitting(true);
     setSubmitError("");
-    socketRef.current.emit(
-      "answer:submit",
-      { roundId: roomState.round.id, optionId },
-      (response) => {
-        setIsSubmitting(false);
-        if (!response?.ok) {
-          setSubmitError(
-            response?.error?.message || "Не удалось отправить ответ",
-          );
-        }
-      },
-    );
+
+    const payload =
+      typeof answer === "object"
+        ? { roundId: roomState.round.id, ...answer }
+        : { roundId: roomState.round.id, optionId: answer };
+
+    socketRef.current.emit("answer:submit", payload, (response) => {
+      setIsSubmitting(false);
+      if (!response?.ok) {
+        setSubmitError(
+          response?.error?.message || "Не удалось отправить ответ",
+        );
+      }
+    });
   }
 
   function handleContinueGame() {
@@ -173,7 +175,8 @@ export function useQuizGame() {
         console.error("Ошибка восстановления сессии:", error);
         if (!ignore) {
           setSessionError(
-            error.message || "Сервер временно недоступен. Проверьте соединение.",
+            error.message ||
+              "Сервер временно недоступен. Проверьте соединение.",
           );
         }
       } finally {

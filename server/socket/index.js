@@ -67,12 +67,16 @@ export async function broadcastRoomState(io, roomId, roomCode) {
 
       if (currentRound) {
         const answersResult = await pool.query(
-          `SELECT member_id, option_id FROM answers WHERE round_id = $1`,
+          `SELECT member_id, option_id, text_answer, points FROM answers WHERE round_id = $1`,
           [currentRound.id],
         );
 
         for (const row of answersResult.rows) {
-          answersMap.set(row.member_id, row.option_id);
+          answersMap.set(row.member_id, {
+            optionId: row.option_id,
+            textAnswer: row.text_answer,
+            points: row.points,
+          });
         }
 
         if (room.status === "round_results" || room.status === "finished") {
@@ -83,8 +87,17 @@ export async function broadcastRoomState(io, roomId, roomCode) {
 
     for (const socket of sockets) {
       const mySession = socket.data.session;
-      const myOptionId = answersMap.get(mySession.id);
-      const myAnswer = myOptionId ? { optionId: myOptionId } : null;
+      const rawAnswer = answersMap.get(mySession.id);
+      const myAnswer = rawAnswer
+        ? {
+            optionId: rawAnswer.optionId,
+            textAnswer: rawAnswer.textAnswer,
+            // Скрываем правильность ответа во время активного вопроса (data hiding):
+            ...(room.status !== "question"
+              ? { isCorrect: rawAnswer.points > 0 }
+              : {}),
+          }
+        : null;
 
       socket.emit("room:state", {
         room: {
@@ -213,9 +226,9 @@ export function setupSocket(io) {
 
     socket.on("answer:submit", async (data, callback) => {
       try {
-        const { roundId, optionId } = data || {};
-        if (!roundId || !optionId) {
-          const error = new Error("Не указан roundId или optionId");
+        const { roundId, optionId, textAnswer } = data || {};
+        if (!roundId || (optionId === undefined && textAnswer === undefined)) {
+          const error = new Error("Не указан roundId или ответ");
           error.code = "VALIDATION_ERROR";
           throw error;
         }
@@ -224,7 +237,7 @@ export function setupSocket(io) {
           session.room_id,
           session.id,
           roundId,
-          optionId,
+          { optionId, textAnswer },
         );
 
         await broadcastRoomState(io, session.room_id, session.room_code);

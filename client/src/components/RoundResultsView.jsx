@@ -1,4 +1,13 @@
-import { Clock, Trophy, Medal, Award, Check, X, ArrowRight, Loader2 } from "lucide-react";
+import {
+  Clock,
+  Trophy,
+  Medal,
+  Award,
+  Check,
+  X,
+  ArrowRight,
+  Loader2,
+} from "lucide-react";
 
 export function RoundResultsView({
   roomState,
@@ -17,9 +26,12 @@ export function RoundResultsView({
   const isLastQuestion = currentNumber >= totalQuestions;
 
   function renderPlaceIcon(place) {
-    if (place === 1) return <Trophy size={18} style={{ color: "#fbbf24" }} title="1 место" />;
-    if (place === 2) return <Medal size={18} style={{ color: "#cbd5e1" }} title="2 место" />;
-    if (place === 3) return <Award size={18} style={{ color: "#f59e0b" }} title="3 место" />;
+    if (place === 1)
+      return <Trophy size={18} style={{ color: "#fbbf24" }} title="1 место" />;
+    if (place === 2)
+      return <Medal size={18} style={{ color: "#cbd5e1" }} title="2 место" />;
+    if (place === 3)
+      return <Award size={18} style={{ color: "#f59e0b" }} title="3 место" />;
     return `#${place}`;
   }
 
@@ -28,63 +40,142 @@ export function RoundResultsView({
       <div style={{ textAlign: "center" }}>
         <span
           className="badge badge-host"
-          style={{ marginBottom: "8px", display: "inline-flex", alignItems: "center", gap: "6px" }}
+          style={{
+            marginBottom: "8px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
         >
           <Clock size={13} />
           Время вышло
         </span>
-        <h2>Итоги раунда {currentNumber} из {totalQuestions}</h2>
-        <p style={{ marginTop: "6px", fontSize: "1.05rem", color: "var(--text-primary)" }}>
+        <h2>
+          Итоги раунда {currentNumber} из {totalQuestions}
+        </h2>
+        <p
+          style={{
+            marginTop: "6px",
+            fontSize: "1.05rem",
+            color: "var(--text-primary)",
+          }}
+        >
           {question.text}
         </p>
       </div>
 
-      {/* Варианты ответов с подсветкой */}
-      <div className="options-grid">
-        {question.options.map((option) => {
-          const isCorrect = results?.correctOptionId === option.id;
-          const isMyChoice = myAnswer?.optionId === option.id;
+      {/* Если вопрос с выбором варианта (choice) */}
+      {question.type === "choice" ? (
+        <div className="options-grid">
+          {question.options.map((option) => {
+            const isCorrect = results?.correctOptionId === option.id;
+            const isMyChoice = myAnswer?.optionId === option.id;
 
-          let statusClass = "dimmed";
-          if (isCorrect) statusClass = "correct";
-          else if (isMyChoice && !isCorrect) statusClass = "wrong";
+            let statusClass = "dimmed";
+            if (isCorrect) statusClass = "correct";
+            else if (isMyChoice && !isCorrect) statusClass = "wrong";
 
-          return (
-            <div key={option.id} className={`result-option ${statusClass}`}>
-              <span>{option.text}</span>
-              {isCorrect && (
-                <span
-                  className="badge badge-online"
-                  style={{ fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                >
-                  <Check size={13} /> Верно
-                </span>
-              )}
-              {isMyChoice && !isCorrect && (
-                <span
-                  className="badge"
-                  style={{
-                    background: "var(--danger-bg)",
-                    color: "var(--danger)",
-                    border: "1px solid var(--danger-border)",
-                    fontSize: "0.75rem",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                  }}
-                >
-                  <X size={13} /> Ваш выбор
-                </span>
-              )}
+            return (
+              <div key={option.id} className={`result-option ${statusClass}`}>
+                <span>{option.text}</span>
+                {isCorrect && (
+                  <span
+                    className="badge badge-online"
+                    style={{
+                      fontSize: "0.75rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <Check size={13} /> Верно
+                  </span>
+                )}
+                {isMyChoice && !isCorrect && (
+                  <span
+                    className="badge"
+                    style={{
+                      background: "var(--danger-bg)",
+                      color: "var(--danger)",
+                      border: "1px solid var(--danger-border)",
+                      fontSize: "0.75rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <X size={13} /> Ваш выбор
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Если вопрос с открытым текстовым вводом (text) */
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            width: "100%",
+          }}
+        >
+          <div
+            className="result-option correct"
+            style={{
+              justifyContent: "center",
+              fontSize: "1.1rem",
+              padding: "16px",
+              textAlign: "center",
+            }}
+          >
+            <span>
+              Правильный ответ: <strong>{results?.correctText}</strong>
+            </span>
+          </div>
+
+          {myAnswer ? (
+            <div
+              className={`result-option ${myAnswer.isCorrect ? "correct" : "wrong"}`}
+              style={{
+                justifyContent: "center",
+                fontSize: "0.95rem",
+                padding: "12px",
+              }}
+            >
+              <span>
+                {myAnswer.isCorrect ? "✓ Вы ответили верно: " : "✗ Ваш ответ: "}
+                <strong>«{myAnswer.textAnswer}»</strong>
+              </span>
             </div>
-          );
-        })}
-      </div>
+          ) : (
+            !isHost && (
+              <p
+                style={{
+                  color: "var(--text-dim)",
+                  fontStyle: "italic",
+                  textAlign: "center",
+                }}
+              >
+                Вы не успели дать ответ на этот вопрос
+              </p>
+            )
+          )}
+        </div>
+      )}
 
       {/* Таблица лидеров */}
       {results?.leaderboard && (
         <div style={{ marginTop: "8px" }}>
-          <h3 style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <h3
+            style={{
+              marginBottom: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
             <Trophy size={18} style={{ color: "#fbbf24" }} />
             Текущие баллы игроков
           </h3>
@@ -106,9 +197,14 @@ export function RoundResultsView({
                       key={p.memberId}
                       className={`leaderboard-row ${isMe ? "is-me" : ""}`}
                     >
-                      <td style={{ verticalAlign: "middle" }}>{renderPlaceIcon(p.place)}</td>
+                      <td style={{ verticalAlign: "middle" }}>
+                        {renderPlaceIcon(p.place)}
+                      </td>
                       <td>
-                        {p.nickname} {isMe && <span style={{ color: "var(--primary)" }}>(Вы)</span>}
+                        {p.nickname}{" "}
+                        {isMe && (
+                          <span style={{ color: "var(--primary)" }}>(Вы)</span>
+                        )}
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <span className="score-chip">{p.score}</span>
@@ -155,7 +251,12 @@ export function RoundResultsView({
       ) : (
         <div
           className="host-waiting-notice"
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+          }}
         >
           <Loader2 size={16} />
           Ожидаем, пока ведущий перейдет к следующему шагу...
