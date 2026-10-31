@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Sparkles } from "lucide-react";
+import { HeroHeader } from "./home/HeroHeader.jsx";
 import { JoinRoomCard } from "./home/JoinRoomCard.jsx";
 import { QuizListCard } from "./home/QuizListCard.jsx";
 
@@ -26,22 +26,7 @@ export function HomeView({
 
   return (
     <div className="app-container">
-      <header className="hero-header">
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "10px",
-            marginBottom: "8px",
-          }}
-        >
-          <Sparkles size={28} style={{ color: "var(--primary)" }} />
-          <h1>Онлайн-квиз</h1>
-        </div>
-        <p className="hero-subtitle">
-          Битва эрудитов в реальном времени с друзьями и коллегами
-        </p>
-      </header>
+      <HeroHeader />
 
       <div className="home-grid">
         <JoinRoomCard

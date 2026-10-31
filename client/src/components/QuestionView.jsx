@@ -1,6 +1,6 @@
-import { Crown, CheckCircle2 } from "lucide-react";
-import { Timer } from "./common/Timer.jsx";
 import { QuestionProgressBar } from "./question/QuestionProgressBar.jsx";
+import { QuestionHeader } from "./question/QuestionHeader.jsx";
+import { QuestionStatusBanner } from "./question/QuestionStatusBanner.jsx";
 import { ChoiceOptions } from "./question/ChoiceOptions.jsx";
 import { TextInputAnswer } from "./question/TextInputAnswer.jsx";
 
@@ -26,53 +26,20 @@ export function QuestionView({
         totalQuestions={totalQuestions}
       />
 
-      <div className="question-header">
-        <span className="badge badge-player">
-          Вопрос {currentNumber} из {totalQuestions}
-        </span>
-        <Timer endsAt={round.endsAt} />
-      </div>
+      <QuestionHeader
+        currentNumber={currentNumber}
+        totalQuestions={totalQuestions}
+        endsAt={round.endsAt}
+      />
 
       <h2 className="question-text">{question.text}</h2>
 
-      {/* Информационный баннер статуса */}
-      {isHost ? (
-        <div
-          className="answer-status-pill info"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-          }}
-        >
-          <Crown size={16} />
-          Вы ведущий. Игроки{" "}
-          {isTextQuestion ? "вводят ответы…" : "делают выбор…"}
-        </div>
-      ) : myAnswer ? (
-        <div
-          className="answer-status-pill success"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-          }}
-        >
-          <CheckCircle2 size={16} />
-          Ваш ответ {isTextQuestion && `«${myAnswer.textAnswer}»`} принят!
-          Ожидаем окончания времени…
-        </div>
-      ) : (
-        <div className="answer-status-pill info">
-          {isTextQuestion
-            ? "Введите ваш ответ в поле ниже:"
-            : "Выберите правильный вариант ответа:"}
-        </div>
-      )}
+      <QuestionStatusBanner
+        isHost={isHost}
+        myAnswer={myAnswer}
+        isTextQuestion={isTextQuestion}
+      />
 
-      {/* Варианты ответа в зависимости от типа */}
       {isTextQuestion ? (
         !isHost &&
         !myAnswer && (
