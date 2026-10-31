@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Crown, CheckCircle2, Check, Send } from "lucide-react";
+import { Crown, CheckCircle2 } from "lucide-react";
 import { Timer } from "./common/Timer.jsx";
-
-const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
+import { QuestionProgressBar } from "./question/QuestionProgressBar.jsx";
+import { ChoiceOptions } from "./question/ChoiceOptions.jsx";
+import { TextInputAnswer } from "./question/TextInputAnswer.jsx";
 
 export function QuestionView({
   roomState,
@@ -11,8 +11,6 @@ export function QuestionView({
   onSubmitAnswer,
   submitError,
 }) {
-  const [textInput, setTextInput] = useState("");
-
   const round = roomState?.round;
   const question = round?.question;
   const myAnswer = roomState?.myAnswer;
@@ -21,22 +19,11 @@ export function QuestionView({
   const isHost = currentUser?.role === "host";
   const isTextQuestion = question?.type === "text";
 
-  const progressPercent = Math.min(
-    100,
-    Math.round((currentNumber / totalQuestions) * 100),
-  );
-
-  function handleTextSubmit(e) {
-    e.preventDefault();
-    if (!textInput.trim() || isSubmitting) return;
-    onSubmitAnswer({ textAnswer: textInput.trim() });
-  }
-
   return (
     <section className="glass-card question-card">
-      <div
-        className="question-progress-bar"
-        style={{ width: `${progressPercent}%` }}
+      <QuestionProgressBar
+        currentNumber={currentNumber}
+        totalQuestions={totalQuestions}
       />
 
       <div className="question-header">
@@ -85,73 +72,22 @@ export function QuestionView({
         </div>
       )}
 
-      {/* Если вопрос с открытым текстовым вводом */}
+      {/* Варианты ответа в зависимости от типа */}
       {isTextQuestion ? (
         !isHost &&
         !myAnswer && (
-          <form
-            onSubmit={handleTextSubmit}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-              width: "100%",
-            }}
-          >
-            <input
-              className="input-field"
-              type="text"
-              placeholder="Введите фамилию или ответ…"
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              disabled={isSubmitting}
-              autoFocus
-              style={{
-                fontSize: "1.1rem",
-                padding: "14px 18px",
-                textAlign: "center",
-              }}
-            />
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={isSubmitting || !textInput.trim()}
-              style={{ width: "100%", padding: "12px", fontSize: "1rem" }}
-            >
-              <Send size={16} />
-              {isSubmitting ? "Отправляем…" : "Отправить ответ"}
-            </button>
-          </form>
+          <TextInputAnswer
+            isSubmitting={isSubmitting}
+            onSubmitText={(textAnswer) => onSubmitAnswer({ textAnswer })}
+          />
         )
       ) : (
-        /* Если вопрос с вариантами ответов */
-        <div className="options-grid">
-          {question.options.map((option, index) => {
-            const isSelected = myAnswer?.optionId === option.id;
-            const isDisabled = isHost || Boolean(myAnswer) || isSubmitting;
-            const letter = OPTION_LETTERS[index] || "•";
-
-            return (
-              <button
-                key={option.id}
-                type="button"
-                className={`option-btn ${isSelected ? "selected" : ""}`}
-                onClick={() => onSubmitAnswer(option.id)}
-                disabled={isDisabled}
-                style={{
-                  opacity: isDisabled && !isSelected ? 0.65 : 1,
-                  cursor: isDisabled ? "default" : "pointer",
-                }}
-              >
-                <span className="option-letter">{letter}</span>
-                <span style={{ flexGrow: 1 }}>{option.text}</span>
-                {isSelected && (
-                  <Check size={16} style={{ color: "var(--primary)" }} />
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <ChoiceOptions
+          options={question.options || []}
+          selectedOptionId={myAnswer?.optionId}
+          isDisabled={isHost || Boolean(myAnswer) || isSubmitting}
+          onSelectOption={(optionId) => onSubmitAnswer(optionId)}
+        />
       )}
 
       {submitError && <div className="form-error">{submitError}</div>}
