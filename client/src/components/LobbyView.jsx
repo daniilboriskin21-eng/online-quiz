@@ -1,4 +1,6 @@
-import { Users, Play, Loader2 } from "lucide-react";
+import { Play, Loader2 } from "lucide-react";
+import { LobbyStatusBanner } from "./lobby/LobbyStatusBanner.jsx";
+import { PlayersGrid } from "./lobby/PlayersGrid.jsx";
 
 export function LobbyView({
   roomState,
@@ -19,78 +21,12 @@ export function LobbyView({
         <p>Игроки собираются. Ведущий начнет викторину, когда все будут готовы.</p>
       </div>
 
-      <div className="lobby-status-banner">
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <span>Ведущий:</span>
-          {hostOnline ? (
-            <span className="badge badge-online">
-              <span className="status-dot online" style={{ width: 6, height: 6 }} /> в сети
-            </span>
-          ) : (
-            <span className="badge badge-offline">
-              <span className="status-dot offline" style={{ width: 6, height: 6 }} /> не в сети
-            </span>
-          )}
-        </div>
-        <div style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-          Игроков: <strong style={{ color: "var(--text-primary)" }}>{playersCount}</strong>
-        </div>
-      </div>
+      <LobbyStatusBanner
+        hostOnline={hostOnline}
+        playersCount={playersCount}
+      />
 
-      <div className="players-container">
-        <div className="players-header">
-          <h3>Участники в комнате</h3>
-          {playersCount > 0 && (
-            <span style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>
-              {playersCount} чел.
-            </span>
-          )}
-        </div>
-
-        {playersCount === 0 ? (
-          <div className="lobby-empty">
-            <div
-              style={{
-                width: "56px",
-                height: "56px",
-                borderRadius: "50%",
-                background: "rgba(99, 102, 241, 0.1)",
-                border: "1px solid rgba(99, 102, 241, 0.25)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 12px",
-              }}
-            >
-              <Users size={28} style={{ color: "var(--primary)" }} />
-            </div>
-            <h4 style={{ color: "var(--text-primary)", marginBottom: "4px" }}>
-              Пока никого нет
-            </h4>
-            <p>Отправьте код комнаты друзьям, чтобы они могли присоединиться!</p>
-          </div>
-        ) : (
-          <div className="players-grid">
-            {players.map((player) => {
-              const initial = player.nickname
-                ? player.nickname[0].toUpperCase()
-                : "?";
-              return (
-                <div key={player.id} className="player-card">
-                  <div className="player-avatar">{initial}</div>
-                  <span className="player-name" title={player.nickname}>
-                    {player.nickname}
-                  </span>
-                  <span
-                    className={`status-dot ${player.online ? "online" : "offline"}`}
-                    title={player.online ? "В сети" : "Не в сети"}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <PlayersGrid players={players} />
 
       {isHost ? (
         <div style={{ marginTop: "8px" }}>
@@ -125,7 +61,12 @@ export function LobbyView({
       ) : (
         <div
           className="host-waiting-notice"
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+          }}
         >
           <Loader2 size={16} />
           Ожидаем, пока ведущий запустит викторину...
