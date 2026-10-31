@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Crown, CheckCircle2, Check, Send } from "lucide-react";
-import { Timer } from "./Timer.jsx";
+import { Timer } from "./common/Timer.jsx";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
 

@@ -1,7 +1,7 @@
 import "./App.css";
 
 import { useQuizGame } from "./hooks/useQuizGame.js";
-import { ConnectionError } from "./components/ConnectionError.jsx";
+import { ConnectionError } from "./components/common/ConnectionError.jsx";
 import { HomeView } from "./components/HomeView.jsx";
 import { RoomHeader } from "./components/RoomHeader.jsx";
 import { LobbyView } from "./components/LobbyView.jsx";

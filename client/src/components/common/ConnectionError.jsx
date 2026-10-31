@@ -25,7 +25,12 @@ export function ConnectionError({ error, onRetry }) {
           type="button"
           className="btn-primary"
           onClick={onRetry}
-          style={{ marginTop: "8px", display: "inline-flex", alignItems: "center", gap: "8px" }}
+          style={{
+            marginTop: "8px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
         >
           <RefreshCw size={16} />
           Попробовать снова
@@ -34,4 +39,3 @@ export function ConnectionError({ error, onRetry }) {
     </div>
   );
 }
-
